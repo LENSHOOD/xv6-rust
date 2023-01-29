@@ -10,9 +10,9 @@ volatile static int started = 0;
 void
 main()
 {
-    consoleinit();
-    printfinit();
-    printf("\n");
-    printf("xv6 kernel is booting\n");
-    printf("\n");
+//    consoleinit();
+//    printfinit();
+//    printf("\n");
+//    printf("xv6 kernel is booting\n");
+//    printf("\n");
 }
