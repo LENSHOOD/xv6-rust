@@ -6,10 +6,11 @@
         # push all registers, call kerneltrap().
         # when kerneltrap() returns, restore registers, return.
         #
-#.globl kerneltrap
-#.globl kernelvec
-#.align 4
-#kernelvec:
+.globl kerneltrap
+.globl kernelvec
+.align 4
+kernelvec:
+    mret
 #        # make room to save registers.
 #        addi sp, sp, -256
 #

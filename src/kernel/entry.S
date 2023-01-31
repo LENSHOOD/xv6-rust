@@ -16,6 +16,18 @@ _entry:
         mul a0, a0, a1
         add sp, sp, a0
         # jump to start() in start.c
-        call start
+        # call start
+        csrw	satp, zero
+
+        li		t0, (0b11 << 11) | (1 << 7) | (1 << 3)
+        csrw	mstatus, t0
+        la		t1, kmain
+        csrw	mepc, t1
+        la		t2, kernelvec
+        csrw	mtvec, t2
+        li		t3, (1 << 3) | (1 << 7) | (1 << 11)
+        csrw	mie, t3
+        la		ra, 4f
+        mret
 spin:
         j spin
