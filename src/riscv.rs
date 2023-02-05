@@ -16,7 +16,7 @@ pub const MSTATUS_MPP_U: u64 = 0 << 11;
 pub const MSTATUS_MIE: u64 = 1 << 3; // machine-mode interrupt enable.
 
 
-pub fn r_mstatus() -> u64{
+pub fn r_mstatus() -> u64 {
     let mut x: u64 = 0;
     unsafe {
         asm!("csrr {}, mstatus", out(reg) x)
