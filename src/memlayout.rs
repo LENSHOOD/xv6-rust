@@ -93,7 +93,7 @@ pub const TRAMPOLINE: u64 =  MAXVA - PGSIZE;
 #[macro_export]
 macro_rules! KSTACK {
     ( $p:expr ) => {
-        $crate::memlayout::TRAMPOLINE - (($p)+1)* 2*$crate::riscv::PGSIZE
+        $crate::memlayout::TRAMPOLINE - (($p) + 1) * 2*$crate::riscv::PGSIZE
     };
 }
 

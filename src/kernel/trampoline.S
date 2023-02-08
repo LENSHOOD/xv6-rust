@@ -33,8 +33,9 @@ uservec:
         # each process has a separate p->trapframe memory area,
         # but it's mapped to the same virtual address
         # (TRAPFRAME) in every process's user page table.
-        li a0, TRAPFRAME
-        
+        #li a0, TRAPFRAME
+        li a0, 274877898752
+
         # save the user registers in TRAPFRAME
         sd ra, 40(a0)
         sd sp, 48(a0)
@@ -109,7 +110,8 @@ userret:
         csrw satp, a0
         sfence.vma zero, zero
 
-        li a0, TRAPFRAME
+        #li a0, TRAPFRAME
+        li a0, 274877898752
 
         # restore all but a0 from TRAPFRAME
         ld ra, 40(a0)
