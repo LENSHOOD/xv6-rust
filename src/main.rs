@@ -2,12 +2,16 @@
 #![no_main]
 #![feature(panic_info_message)]
 
+extern crate alloc;
+
 mod asm;
 mod riscv;
 mod memlayout;
 mod param;
 mod uart;
 mod start;
+mod spinlock;
+mod proc;
 
 use core::ops::Add;
 use crate::memlayout::CLINT_MTIME;
