@@ -1,17 +1,17 @@
 use alloc::boxed::Box;
 use crate::proc::{Cpu, mycpu};
-use crate::riscv::{intr_get, intr_off, intr_on};
+use crate::riscv::{__sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on};
 
 struct Spinlock {
     locked: u8,             // Is the lock held?
 
     // For debugging:
-    name: *str,             // Name of lock.
-    cpu: Option<*Cpu>       // The cpu holding the lock.
+    name: *mut str,             // Name of lock.
+    cpu: Option<*mut Cpu>       // The cpu holding the lock.
 }
 
 impl Spinlock {
-    fn init_lock(name: *str) -> Self {
+    fn init_lock(name: *mut str) -> Self {
         Spinlock {
             locked: 0,
             name,
@@ -67,7 +67,7 @@ impl Spinlock {
         // On RISC-V, sync_lock_release turns into an atomic swap:
         //   s1 = &lk->locked
         //   amoswap.w zero, zero, (s1)
-        __sync_lock_release(self.locked);
+        __sync_lock_release(&self.locked);
 
         Self::pop_off();
     }

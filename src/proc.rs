@@ -3,9 +3,9 @@ use crate::param::NCPU;
 use crate::riscv::r_tp;
 
 // Saved registers for kernel context switches.
-#[derive(Default, Copy, Clone)]
+#[derive(Copy, Clone)]
 struct Context {
-    ra: u64.
+    ra: u64,
     sp: u64,
 
     // callee-saved
@@ -24,15 +24,37 @@ struct Context {
 }
 
 // Per-CPU state.
-#[derive(Default, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct Cpu {
-    proc: Option<*Proc>,     // The process running on this cpu, or null.
+    proc: Option<*mut Proc>,     // The process running on this cpu, or null.
     context: Context,    // swtch() here to enter scheduler().
     pub noff: u8,            // Depth of push_off() nesting.
     pub intena: bool,          // Were interrupts enabled before push_off()?
 }
 
-static mut CPUS: [Cpu; NCPU] = [Default::default(); NCPU];
+// TODO: temporary init struct Cpu
+static mut CPUS: [Cpu; NCPU] = [
+    Cpu{
+        proc: None,
+        context: Context{
+            ra: 0,
+            sp: 0,
+            s0: 0,
+            s1: 0,
+            s2: 0,
+            s3: 0,
+            s4: 0,
+            s5: 0,
+            s6: 0,
+            s7: 0,
+            s8: 0,
+            s9: 0,
+            s10: 0,
+            s11: 0,
+        },
+        noff: 0,
+        intena: false,
+    }; NCPU];
 
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the

@@ -13,6 +13,7 @@ mod start;
 mod spinlock;
 mod proc;
 
+use core::alloc::{GlobalAlloc, Layout};
 use core::ops::Add;
 use crate::memlayout::CLINT_MTIME;
 use crate::riscv::*;
@@ -74,6 +75,20 @@ fn abort() -> ! {
         }
     }
 }
+
+struct NoopAllocator{}
+unsafe impl Sync for NoopAllocator {}
+unsafe impl GlobalAlloc for NoopAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        todo!()
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        todo!()
+    }
+}
+#[global_allocator]
+static ALLOCATOR: NoopAllocator = NoopAllocator{};
 
 #[no_mangle]
 pub extern "C"

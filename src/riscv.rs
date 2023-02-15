@@ -386,3 +386,23 @@ macro_rules! PX {
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
 pub const MAXVA: u64 = 1 << (9 + 9 + 9 + 12 - 1);
+
+/// atomic op
+pub fn __sync_lock_test_and_set(ptr: *const u8, mut val: u64) -> u64 {
+    unsafe {
+        asm!("amoswap.w.aq {}, {}, ({})", inout(reg) val, inout(reg) val, in(reg) ptr)
+    }
+    val
+}
+
+pub fn __sync_lock_release(ptr: *const u8) {
+    unsafe {
+        asm!("amoswap.w zero, zero, ({})", in(reg) ptr)
+    }
+}
+
+pub fn __sync_synchronize() {
+    unsafe {
+        asm!("fence iorw, iorw")
+    }
+}
