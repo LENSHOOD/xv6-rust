@@ -1,17 +1,18 @@
 use alloc::boxed::Box;
+use core::ops::Add;
 use crate::proc::{Cpu, mycpu};
 use crate::riscv::{__sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on};
 
-struct Spinlock {
+pub struct Spinlock {
     locked: u8,             // Is the lock held?
 
     // For debugging:
-    name: *mut str,             // Name of lock.
+    name: &'static str,             // Name of lock.
     cpu: Option<*mut Cpu>       // The cpu holding the lock.
 }
 
 impl Spinlock {
-    fn init_lock(name: *mut str) -> Self {
+    pub fn init_lock(name: &str) -> Self {
         Spinlock {
             locked: 0,
             name,
@@ -21,8 +22,8 @@ impl Spinlock {
 
     /// Acquire the lock.
     /// Loops (spins) until the lock is acquired.
-    fn acquire(self: &mut Self) {
-        Self::push_off(); // disable interrupts to afn deadlock.
+    pub fn acquire(self: &mut Self) {
+        push_off(); // disable interrupts to afn deadlock.
         if self.holding() {
             panic!("acquire");
         }
@@ -44,7 +45,7 @@ impl Spinlock {
     }
 
     // Release the lock.
-    fn release(self: &mut Self)
+    pub fn release(self: &mut Self)
     {
         if !self.holding() {
             panic!("release");
@@ -69,7 +70,7 @@ impl Spinlock {
         //   amoswap.w zero, zero, (s1)
         __sync_lock_release(&self.locked);
 
-        Self::pop_off();
+        pop_off();
     }
 
     /// Check whether this cpu is holding the lock.
@@ -77,38 +78,38 @@ impl Spinlock {
     fn holding(self: &Self) -> bool {
         self.locked == 1 && self.cpu == Some(mycpu())
     }
+}
 
-    /// push_off/pop_off are like intr_off()/intr_on() except that they are matched:
-    /// it takes two pop_off()s to undo two push_off()s.  Also, if interrupts
-    /// are initially off, then push_off, pop_off leaves them off.
+/// push_off/pop_off are like intr_off()/intr_on() except that they are matched:
+/// it takes two pop_off()s to undo two push_off()s.  Also, if interrupts
+/// are initially off, then push_off, pop_off leaves them off.
 
-    fn push_off() {
-        let old = intr_get();
+pub fn push_off() {
+    let old = intr_get();
 
-        intr_off();
-        let mut cpu = mycpu();
-        unsafe {
-            if (*cpu).noff == 0 {
-                (*cpu).intena = old;
-                (*cpu).noff += 1;
-            }
+    intr_off();
+    let mut cpu = mycpu();
+    unsafe {
+        if (*cpu).noff == 0 {
+            (*cpu).intena = old;
+            (*cpu).noff += 1;
         }
     }
+}
 
-    fn pop_off() {
-        let cpu = mycpu();
-        if intr_get() {
-            panic!("pop_off - interruptible");
+pub fn pop_off() {
+    let cpu = mycpu();
+    if intr_get() {
+        panic!("pop_off - interruptible");
+    }
+
+    unsafe {
+        if (*cpu).noff < 1 {
+            panic!("pop_off");
         }
-
-        unsafe {
-            if (*cpu).noff < 1 {
-                panic!("pop_off");
-            }
-            (*cpu).noff -= 1;
-            if (*cpu).noff == 0 && (*cpu).intena {
-                intr_on();
-            }
+        (*cpu).noff -= 1;
+        if (*cpu).noff == 0 && (*cpu).intena {
+            intr_on();
         }
     }
 }
