@@ -119,7 +119,7 @@ struct Proc {
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
 // to a different CPU.
-fn cpuid() -> usize {
+pub fn cpuid() -> usize {
     r_tp() as usize
 }
 

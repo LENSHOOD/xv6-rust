@@ -12,7 +12,7 @@ pub struct Spinlock {
 }
 
 impl Spinlock {
-    pub fn init_lock(name: &str) -> Self {
+    pub fn init_lock(name: &'static str) -> Self {
         Spinlock {
             locked: 0,
             name,

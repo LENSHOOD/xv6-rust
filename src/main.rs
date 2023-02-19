@@ -18,6 +18,7 @@ use core::ops::Add;
 use crate::memlayout::CLINT_MTIME;
 use crate::riscv::*;
 use crate::param::*;
+use crate::proc::cpuid;
 
 // ///////////////////////////////////
 // / RUST MACROS
@@ -27,7 +28,7 @@ macro_rules! print
 {
 	($($args:tt)+) => ({
         use core::fmt::Write;
-        let _ = write!(crate::uart::UartDriver::new(0x1000_0000), $($args)+);
+        let _ = write!(crate::uart::Uart::init(), $($args)+);
 	});
 }
 #[macro_export]
@@ -93,9 +94,8 @@ static ALLOCATOR: NoopAllocator = NoopAllocator{};
 #[no_mangle]
 pub extern "C"
 fn kmain() {
-    let mut my_uart = uart::UartDriver::new(0x1000_0000);
-    my_uart.init();
-
-    println!("This is my operating system!");
-    println!("I'm so awesome. If you start typing something, I'll show you what you typed!");
+    if cpuid() == 0 {
+        println!("This is my operating system!");
+        println!("I'm so awesome. If you start typing something, I'll show you what you typed!");
+    }
 }
