@@ -1,4 +1,3 @@
-use core::fmt::{Error, Write};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 
 // the UART control registers are memory-mapped
@@ -196,18 +195,5 @@ impl Uart {
         self.uart_tx_lock.acquire();
         self.start();
         self.uart_tx_lock.release();
-    }
-}
-
-// TODO: temporary, remove it later
-impl Write for Uart {
-    // The trait Write expects us to write the function write_str
-    // which looks like:
-    fn write_str(&mut self, s: &str) -> Result<(), Error> {
-        for c in s.bytes() {
-            self.putc_sync(c);
-        }
-        // Return that we succeeded.
-        Ok(())
     }
 }

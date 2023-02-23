@@ -12,38 +12,18 @@ mod uart;
 mod start;
 mod spinlock;
 mod proc;
+mod console;
+mod printf;
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::fmt::Write;
 use core::ops::Add;
+use crate::console::Console;
 use crate::memlayout::CLINT_MTIME;
 use crate::riscv::*;
 use crate::param::*;
+use crate::printf::{Printer, PRINTER};
 use crate::proc::cpuid;
-
-// ///////////////////////////////////
-// / RUST MACROS
-// ///////////////////////////////////
-#[macro_export]
-macro_rules! print
-{
-	($($args:tt)+) => ({
-        use core::fmt::Write;
-        let _ = write!(crate::uart::Uart::init(), $($args)+);
-	});
-}
-#[macro_export]
-macro_rules! println
-{
-	() => ({
-		print!("\r\n")
-	});
-	($fmt:expr) => ({
-		print!(concat!($fmt, "\r\n"))
-	});
-	($fmt:expr, $($args:tt)+) => ({
-		print!(concat!($fmt, "\r\n"), $($args)+)
-	});
-}
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS
@@ -52,9 +32,9 @@ macro_rules! println
 extern "C" fn eh_personality() {}
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    print!("Aborting: ");
+    printf!("Aborting: ");
     if let Some(p) = info.location() {
-        println!(
+        printf!(
             "line {}, file {}: {}",
             p.line(),
             p.file(),
@@ -62,7 +42,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         );
     }
     else {
-        println!("no information available.");
+        printf!("no information available.");
     }
     abort();
 }
@@ -95,7 +75,12 @@ static ALLOCATOR: NoopAllocator = NoopAllocator{};
 pub extern "C"
 fn kmain() {
     if cpuid() == 0 {
-        println!("This is my operating system!");
-        println!("I'm so awesome. If you start typing something, I'll show you what you typed!");
+        let mut console = Console::init();
+
+        unsafe { PRINTER = Some(Printer::init(console)); }
+
+        printf!("\n");
+        printf!("xv6 kernel is booting\n");
+        printf!("\n");
     }
 }
