@@ -32,17 +32,17 @@ use crate::proc::cpuid;
 extern "C" fn eh_personality() {}
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    printf!("Aborting: ");
+    printf!("Aborting: \n");
     if let Some(p) = info.location() {
         printf!(
-            "line {}, file {}: {}",
+            "line {}, file {}: {}\n",
             p.line(),
             p.file(),
             info.message().unwrap()
         );
     }
     else {
-        printf!("no information available.");
+        printf!("no information available.\n");
     }
     abort();
 }

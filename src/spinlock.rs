@@ -1,14 +1,15 @@
 use alloc::boxed::Box;
 use core::ops::Add;
-use crate::proc::{Cpu, mycpu};
+use crate::proc::{Cpu, cpuid, mycpu};
 use crate::riscv::{__sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on};
+use crate::uart::Uart;
 
 pub struct Spinlock {
-    locked: u8,             // Is the lock held?
+    locked: u64,             // Is the lock held?
 
     // For debugging:
-    name: &'static str,             // Name of lock.
-    cpu: Option<*mut Cpu>       // The cpu holding the lock.
+    name: &'static str,      // Name of lock.
+    cpu: Option<*mut Cpu>,   // The cpu holding the lock.
 }
 
 impl Spinlock {
@@ -32,7 +33,7 @@ impl Spinlock {
         //   a5 = 1
         //   s1 = &lk->locked
         //   amoswap.w.aq a5, a5, (s1)
-        while __sync_lock_test_and_set(&self.locked, 1) != 0 {}
+        while __sync_lock_test_and_set(&mut self.locked, 1) != 0 {}
 
         // Tell the C compiler and the processor to not move loads or stores
         // past this point, to ensure that the critical section's memory
@@ -92,8 +93,8 @@ pub fn push_off() {
     unsafe {
         if (*cpu).noff == 0 {
             (*cpu).intena = old;
-            (*cpu).noff += 1;
         }
+        (*cpu).noff += 1;
     }
 }
 

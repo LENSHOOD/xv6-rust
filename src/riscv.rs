@@ -388,14 +388,15 @@ macro_rules! PX {
 pub const MAXVA: u64 = 1 << (9 + 9 + 9 + 12 - 1);
 
 /// atomic op
-pub fn __sync_lock_test_and_set(ptr: *const u8, mut val: u64) -> u64 {
+pub fn __sync_lock_test_and_set(ptr: *mut u64, val: u64) -> u64 {
+    let mut ret: u64 = 0;
     unsafe {
-        asm!("amoswap.w.aq {}, {}, ({})", inout(reg) val, inout(reg) val, in(reg) ptr)
+        asm!("amoswap.w.aq {0}, {1}, ({2})", out(reg) ret, in(reg) val, in(reg) ptr)
     }
-    val
+    ret
 }
 
-pub fn __sync_lock_release(ptr: *const u8) {
+pub fn __sync_lock_release(ptr: *const u64) {
     unsafe {
         asm!("amoswap.w zero, zero, ({})", in(reg) ptr)
     }
