@@ -14,11 +14,14 @@ mod spinlock;
 mod proc;
 mod console;
 mod printf;
+mod kalloc;
+mod string;
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::fmt::Write;
 use core::ops::Add;
 use crate::console::Console;
+use crate::kalloc::{KMEM, KMem};
 use crate::memlayout::CLINT_MTIME;
 use crate::riscv::*;
 use crate::param::*;
@@ -76,11 +79,10 @@ pub extern "C"
 fn kmain() {
     if cpuid() == 0 {
         let mut console = Console::init();
-
         unsafe { PRINTER = Some(Printer::init(console)); }
-
         printf!("\n");
         printf!("xv6 kernel is booting\n");
         printf!("\n");
+        unsafe { KMEM = Some(KMem::kinit()) }
     }
 }

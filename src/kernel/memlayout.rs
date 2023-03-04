@@ -81,12 +81,12 @@ macro_rules! PLIC_SCLAIM {
 // the kernel expects there to be RAM
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
-pub const KERNBASE: u64 =  0x80000000;
-pub const PHYSTOP: u64 =  KERNBASE + 128*1024*1024;
+pub const KERNBASE: usize =  0x80000000;
+pub const PHYSTOP: usize =  KERNBASE + 128*1024*1024;
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.
-pub const TRAMPOLINE: u64 =  MAXVA - PGSIZE;
+pub const TRAMPOLINE: usize = MAXVA - PGSIZE;
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.
@@ -106,4 +106,4 @@ macro_rules! KSTACK {
 //   ...
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
-pub const TRAPFRAME: u64 =  TRAMPOLINE - PGSIZE;
+pub const TRAPFRAME: usize =  TRAMPOLINE - PGSIZE;

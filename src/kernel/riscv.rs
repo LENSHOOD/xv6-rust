@@ -322,13 +322,13 @@ pub fn sfence_vma() {
     }
 }
 
-pub const PGSIZE: u64 = 4096; // bytes per page
-pub const PGSHIFT: u64 = 12;  // bits of offset within a page
+pub const PGSIZE: usize = 4096; // bytes per page
+pub const PGSHIFT: usize = 12;  // bits of offset within a page
 
 #[macro_export]
 macro_rules! PGROUNDUP {
     ( $sz:expr ) => {
-        (($sz) + $crate::riscv::PGSIZE - 1) & !($crate::riscv::PGSIZE - 1)
+        (($sz) as usize + $crate::riscv::PGSIZE - 1) & !($crate::riscv::PGSIZE - 1)
     };
 }
 #[macro_export]
@@ -385,7 +385,7 @@ macro_rules! PX {
 // MAXVA is actually one bit less than the max allowed by
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
-pub const MAXVA: u64 = 1 << (9 + 9 + 9 + 12 - 1);
+pub const MAXVA: usize = 1 << (9 + 9 + 9 + 12 - 1);
 
 /// atomic op
 pub fn __sync_lock_test_and_set(ptr: *mut u64, val: u64) -> u64 {
