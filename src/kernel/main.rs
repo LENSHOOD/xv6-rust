@@ -18,6 +18,7 @@ mod kalloc;
 mod string;
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::borrow::BorrowMut;
 use core::fmt::Write;
 use core::ops::Add;
 use crate::console::Console;
@@ -84,5 +85,10 @@ fn kmain() {
         printf!("xv6 kernel is booting\n");
         printf!("\n");
         unsafe { KMEM = Some(KMem::kinit()) }
+        unsafe {
+            printf!("Ready to alloc\n");
+            let first_page = KMEM.as_mut().unwrap().kalloc();
+            printf!("First page starts at : 0x{:x}", first_page as usize);
+        }
     }
 }
