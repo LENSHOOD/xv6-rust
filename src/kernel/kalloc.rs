@@ -1,14 +1,15 @@
 use core::ptr;
 use crate::memlayout::PHYSTOP;
-use crate::{panic, PGROUNDUP};
+use crate::{panic, PGROUNDUP, printf};
 use crate::riscv::PGSIZE;
 use crate::spinlock::Spinlock;
 use crate::string::memset;
+use crate::uart::Uart;
 
 extern "C" {
     // first address after kernel.
     // defined by kernel.ld.
-    static end: usize;
+    static mut end: u8;
 }
 
 struct Run {
@@ -29,9 +30,11 @@ impl KMem {
             freelist: ptr::null_mut(),
         };
         unsafe {
-            Self::freerange(&mut k_mem, end as *mut u8, PHYSTOP as *mut u8);
+
+            Self::freerange(&mut k_mem, (&mut end) as *mut u8, PHYSTOP as *mut u8);
         }
 
+        printf!("finish init \n");
         k_mem
     }
 
@@ -47,11 +50,11 @@ impl KMem {
     /// which normally should have been returned by a
     /// call to kalloc().  (The exception is when
     /// initializing the allocator; see kinit above.)
-    fn kfree(self: &mut Self, pa: *mut u8)
+    pub fn kfree(self: &mut Self, pa: *mut u8)
     {
         unsafe {
             let pa_uszie = pa as usize;
-            if pa_uszie % PGSIZE != 0 || pa_uszie < end || pa_uszie >= PHYSTOP {
+            if pa_uszie % PGSIZE != 0 || pa_uszie < ((&end) as *const u8) as usize  || pa_uszie >= PHYSTOP {
                 panic!("kfree");
             }
         }
@@ -72,7 +75,7 @@ impl KMem {
     /// Allocate one 4096-byte page of physical memory.
     /// Returns a pointer that the kernel can use.
     /// Returns 0 if the memory cannot be allocated.
-    fn kalloc(self: &mut Self) -> *mut u8 {
+    pub fn kalloc(self: &mut Self) -> *mut u8 {
         self.lock.acquire();
         let r = self.freelist;
         if !r.is_null() {
