@@ -16,6 +16,7 @@ mod console;
 mod printf;
 mod kalloc;
 mod string;
+mod vm;
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::borrow::BorrowMut;
@@ -28,6 +29,7 @@ use crate::riscv::*;
 use crate::param::*;
 use crate::printf::{Printer, PRINTER};
 use crate::proc::cpuid;
+use crate::vm::kvminit;
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS
@@ -81,14 +83,19 @@ fn kmain() {
     if cpuid() == 0 {
         let mut console = Console::init();
         unsafe { PRINTER = Some(Printer::init(console)); }
-        printf!("\n");
-        printf!("xv6 kernel is booting\n");
-        printf!("\n");
+        printf!("\nxv6 kernel is booting\n\n");
+
         unsafe { KMEM = Some(KMem::kinit()) }
+
+        // debug info
         unsafe {
             printf!("Ready to alloc\n");
             let first_page = KMEM.as_mut().unwrap().kalloc();
             printf!("First page starts at : 0x{:x}", first_page as usize);
+            KMEM.as_mut().unwrap().kfree(first_page)
+            printf!("Page freed\n");
         }
+
+        kvminit();
     }
 }

@@ -1,6 +1,9 @@
 use alloc::boxed::Box;
-use crate::param::NCPU;
-use crate::riscv::r_tp;
+use crate::kalloc::KMEM;
+use crate::KSTACK;
+use crate::param::{NCPU, NPROC};
+use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, r_tp};
+use crate::vm::kvmmap;
 
 // Saved registers for kernel context switches.
 #[derive(Copy, Clone)]
@@ -55,6 +58,10 @@ static mut CPUS: [Cpu; NCPU] = [
         noff: 0,
         intena: false,
     }; NCPU];
+
+static mut PROCS: [Proc; NPROC] = [
+    Proc{}; NPROC
+];
 
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
@@ -130,3 +137,20 @@ pub fn mycpu() -> *mut Cpu {
         &mut CPUS[cpuid()]
     }
 }
+
+// Allocate a page for each process's kernel stack.
+// Map it high in memory, followed by an invalid
+// guard page.
+pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
+    for idx in 0..NPROC {
+        unsafe {
+            let pa = KMEM.as_mut().unwrap().kalloc();
+            if pa.is_null() {
+                panic!("kalloc");
+            }
+            let va = KSTACK!(idx);
+            kvmmap(kpgtbl, va, pa as usize, PGSIZE, PTE_R | PTE_W)
+        }
+    }
+}
+

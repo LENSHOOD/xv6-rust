@@ -322,6 +322,9 @@ pub fn sfence_vma() {
     }
 }
 
+pub struct Pte(usize);
+pub struct PageTable<'a>(&'a [usize]);  // 512 PTEs
+
 pub const PGSIZE: usize = 4096; // bytes per page
 pub const PGSHIFT: usize = 12;  // bits of offset within a page
 
@@ -334,7 +337,7 @@ macro_rules! PGROUNDUP {
 #[macro_export]
 macro_rules! PGROUNDDOWN {
     ( $a:expr ) => {
-        (($a)) & !(crate::riscv::PGSIZEPGSIZE - 1)
+        (($a)) & !(crate::riscv::PGSIZE - 1)
     };
 }
 
@@ -348,14 +351,14 @@ pub const PTE_U: u64 = 1 << 4;// user can access
 #[macro_export]
 macro_rules! PA2PTE {
     ( $pa:expr ) => {
-        (($pa) as u64 >> 12) << 10
+        (($pa) as usize >> 12) << 10
     };
 }
 
 #[macro_export]
 macro_rules! PTE2PA {
     ( $pta:expr ) => {
-        (($pta) as u64 >> 10) << 12
+        (($pta) as usize >> 10) << 12
     };
 }
 

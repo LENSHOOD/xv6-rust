@@ -24,7 +24,7 @@ pub const UART0: usize = 0x10000000;
 pub const UART0_IRQ: u64 = 10;
 
 // virtio mmio interface
-pub const VIRTIO0: u64 =  0x10001000;
+pub const VIRTIO0: usize =  0x10001000;
 pub const VIRTIO0_IRQ: u64 =  1;
 
 // core local interruptor (CLINT), which contains the timer.
@@ -38,9 +38,9 @@ macro_rules! CLINT_MTIMECMP {
 pub const CLINT_MTIME: u64 =  CLINT + 0xBFF8; // cycles since boot.
 
 // qemu puts platform-level interrupt controller (PLIC) here.
-pub const PLIC: u64 =  0x0c000000;
-pub const PLIC_PRIORITY: u64 = PLIC + 0x0;
-pub const PLIC_PENDING: u64 = PLIC + 0x1000;
+pub const PLIC: usize =  0x0c000000;
+pub const PLIC_PRIORITY: usize = PLIC + 0x0;
+pub const PLIC_PENDING: usize = PLIC + 0x1000;
 #[macro_export]
 macro_rules! PLIC_MENABLE {
     ( $hart:expr ) => {
