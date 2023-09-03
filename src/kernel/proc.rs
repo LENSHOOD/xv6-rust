@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use crate::kalloc::KMEM;
 use crate::KSTACK;
 use crate::param::{NCPU, NPROC};

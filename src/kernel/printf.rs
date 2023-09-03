@@ -1,5 +1,4 @@
 use core::fmt::{Arguments, Write};
-use core::mem::swap;
 use crate::console::Console;
 use crate::spinlock::Spinlock;
 

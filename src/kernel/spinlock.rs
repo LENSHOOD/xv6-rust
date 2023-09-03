@@ -1,8 +1,5 @@
-use alloc::boxed::Box;
-use core::ops::Add;
-use crate::proc::{Cpu, cpuid, mycpu};
+use crate::proc::{Cpu, mycpu};
 use crate::riscv::{__sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on};
-use crate::uart::Uart;
 
 pub struct Spinlock {
     locked: u64,             // Is the lock held?

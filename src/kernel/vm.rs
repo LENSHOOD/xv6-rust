@@ -1,67 +1,65 @@
-use core::ptr::null_mut;
 use crate::kalloc::KMEM;
 use crate::{PA2PTE, PGROUNDDOWN, PTE2PA, PX};
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
 use crate::proc::proc_mapstacks;
-use crate::riscv::{MAXVA, PageTable, PGSIZE, PGTBL_SIZE, Pte, PTE_R, PTE_V, PTE_W, PTE_X};
+use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_V, PTE_W, PTE_X};
 use crate::string::memset;
 
 /*
  * the kernel's page table.
  */
-static mut kernel_pagetable: Option<PageTable> = None;
+static mut KERNEL_PAGETABLE: Option<&'static PageTable> = None;
 
-const etext: [u8; 0] = [0; 0];  // kernel.ld sets this to end of kernel code.
+const ETEXT: [u8; 0] = [0; 0];  // kernel.ld sets this to end of kernel code.
 
 const trampoline: [u8; 0]= [0; 0]; // trampoline.S
 
 // Make a direct-map page table for the kernel.
-fn kvmmake() -> PageTable {
-    let pg: *mut u8 = null_mut();
-    unsafe {
+fn kvmmake<'a>() -> &'a PageTable {
+    let kpgtbl = unsafe {
         let pg = KMEM.as_mut().unwrap().kalloc();
         memset(pg, 0, PGSIZE);
-    }
-    let mut kpgtbl = pg as PageTable;
+        (pg as *mut PageTable).as_mut().unwrap()
+    };
 
     // uart registers
-    kvmmap(&mut kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
 
     // virtio mmio disk interface
-    kvmmap(&mut kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
     // PLIC
-    kvmmap(&mut kpgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+    kvmmap(kpgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
 
-    let etext_addr = (&etext as *const usize) as usize;
+    let etext_addr = (&ETEXT as *const u8) as usize;
     // map kernel text executable and read-only.
-    kvmmap(&mut kpgtbl, KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
+    kvmmap(kpgtbl, KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
 
     // map kernel data and the physical RAM we'll make use of.
-    kvmmap(&mut kpgtbl, etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
+    kvmmap(kpgtbl, etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
 
-    let trapoline_addr = (&trampoline as *const usize) as usize;
+    let trapoline_addr = (&trampoline as *const u8) as usize;
     // map the trampoline for trap entry/exit to
     // the highest virtual address in the kernel.
-    kvmmap(&mut kpgtbl, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X);
+    kvmmap(kpgtbl, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X);
 
     // allocate and map a kernel stack for each process.
-    proc_mapstacks(&mut kpgtbl);
+    proc_mapstacks(kpgtbl);
 
     kpgtbl
 }
 
-// Initialize the one kernel_pagetable
+// Initialize the one KERNEL_PAGETABLE
 pub fn kvminit() {
     unsafe {
-        kernel_pagetable = Some(kvmmake());
+        KERNEL_PAGETABLE = Some(kvmmake());
     }
 }
 
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
-pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: u64)
+pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: usize)
 {
     if mappages(kpgtbl, va, pa, sz, perm) != 0 {
         panic!("kvmmap");
@@ -72,7 +70,7 @@ pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: u64
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
 // allocate a needed page-table page.
-fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, perm: u64) -> i32 {
+fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, perm: usize) -> i32 {
     if size == 0 {
         panic!("mappages: size");
     }
@@ -81,16 +79,17 @@ fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, pe
     let last: usize = PGROUNDDOWN!(va + size - 1);
 
     loop {
-        let pte: Pte = walk(pagetable, a, 1).unwrap();
-        if pte == 0 {
+        let pte: Option<&mut Pte> = walk(pagetable, a, 1);
+        if pte.is_none() {
             return -1;
         }
 
-        if (*Pte) & PTE_V == 1 {
+        let pte = pte.unwrap();
+        if pte.0 & PTE_V == 1 {
             panic!("mappages: remap");
         }
 
-        (*pte) = PA2PTE(pa) | perm | PTE_V;
+        (*pte) = Pte(PA2PTE!(pa) | perm | PTE_V);
         if a == last {
             break;
         }
@@ -114,16 +113,16 @@ fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, pe
 //   21..29 -- 9 bits of level-1 index.
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
-fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<*Pte> {
+fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> {
     if va >= MAXVA {
         panic!("walk");
     }
 
     let mut curr_pgtbl = pagetable;
     for level in 2..0 {
-        pte: Pte = curr_pgtbl[PX!(level, va)] as Pte;
-        if pte & PTE_V {
-            curr_pgtbl = (PTE2PA!(pte) as *const u8) as &mut PageTable;
+        let pte: &mut Pte = &mut (&mut (curr_pgtbl.0)[PX!(level, va)]);
+        if pte.0 & PTE_V  == PTE_V {
+            unsafe { curr_pgtbl = (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap(); }
         } else {
             unsafe {
                 let next_level_pgtbl = KMEM.as_mut().unwrap().kalloc();
@@ -131,13 +130,14 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<*Pte> {
                     return None;
                 }
                 memset(next_level_pgtbl, 0, PGSIZE);
-                curr_pgtbl = next_level_pgtbl as &mut PageTable;
-                pte = PA2PTE!(curr_pgtbl as usize) | PTE_V;
+
+                *pte = Pte(PA2PTE!(next_level_pgtbl.expose_addr()) | PTE_V);
+                curr_pgtbl = (next_level_pgtbl as *mut PageTable).as_mut().unwrap();
             }
         }
     }
 
-    Some(&(curr_pgtbl[PX!(0, va)]))
+    Some(&mut (curr_pgtbl.0[PX!(0, va)]))
 }
 
 

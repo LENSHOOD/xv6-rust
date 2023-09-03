@@ -322,8 +322,18 @@ pub fn sfence_vma() {
     }
 }
 
-pub struct Pte(usize);
-pub struct PageTable<'a>(&'a [usize]);  // 512 PTEs
+/// VPN = Visual Page Number, PPN = Physical Page Number
+/// Visual Addr(Sv39): | (9-bits) level-0 VPN | (9-bits) level-1 VPN | (9-bits) level-2 VPN | 12-bit offset |
+/// PTE: | (9-bits) level-0 PPN | (9-bits) level-1 PPN | (9-bits) level-2 PPN | (10-bits) RSW(2) D A G U X W R V |
+pub struct Pte(pub usize);
+
+pub const PTE_SIZE: usize = PGSIZE / 8;
+/// PageTable:
+/// Level0-PhysicalPageAddr -> Level0-PGTBL[(some idx less than 512)]:PTE
+///     >_> Level1-PhysicalPageAddr(PTE >> 10 << 12) -> Level1-PGTBL[(some idx less than 512)]:PTE
+///         >_> Level2-PhysicalPageAddr(PTE >> 10 << 12) -> Level2-PGTBL[(some idx less than 512)]:PTE
+///             >_> PhysicalPageAddr(PTE >> 10 << 12)
+pub struct PageTable(pub [Pte; PTE_SIZE]);  // 512 PTEs
 
 pub const PGSIZE: usize = 4096; // bytes per page
 pub const PGSHIFT: usize = 12;  // bits of offset within a page
@@ -341,11 +351,11 @@ macro_rules! PGROUNDDOWN {
     };
 }
 
-pub const PTE_V: u64 = 1 << 0; // valid
-pub const PTE_R: u64 = 1 << 1;
-pub const PTE_W: u64 = 1 << 2;
-pub const PTE_X: u64 = 1 << 3;
-pub const PTE_U: u64 = 1 << 4;// user can access
+pub const PTE_V: usize = 1 << 0; // valid
+pub const PTE_R: usize = 1 << 1;
+pub const PTE_W: usize = 1 << 2;
+pub const PTE_X: usize = 1 << 3;
+pub const PTE_U: usize = 1 << 4;// user can access
 
 // shift a physical address to the right place for a PTE.
 #[macro_export]
@@ -370,7 +380,7 @@ macro_rules! PTE_FLAGS {
 }
 
 // extract the three 9-bit page table indices from a virtual address.
-pub const PXMASK: u64 = 0x1FF; // 9 bits
+pub const PXMASK: usize = 0x1FF; // 9 bits
 #[macro_export]
 macro_rules! PXSHIFT {
     ( $level:expr ) => {
@@ -380,7 +390,7 @@ macro_rules! PXSHIFT {
 #[macro_export]
 macro_rules! PX {
     ( $level:expr,  $va:expr) => {
-        (($va) as u64 >> crate::riscv::PXSHIFT($level)) & crate::riscv::PXMASK
+        (($va) as usize >> crate::PXSHIFT!($level)) & crate::riscv::PXMASK
     };
 }
 

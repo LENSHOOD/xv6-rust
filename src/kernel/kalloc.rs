@@ -1,10 +1,9 @@
 use core::ptr;
 use crate::memlayout::PHYSTOP;
-use crate::{panic, PGROUNDUP, printf};
+use crate::{PGROUNDUP, printf};
 use crate::riscv::PGSIZE;
 use crate::spinlock::Spinlock;
 use crate::string::memset;
-use crate::uart::Uart;
 
 extern "C" {
     // first address after kernel.

@@ -1,14 +1,9 @@
-#![no_std]
-#![no_main]
-#![feature(panic_info_message)]
-
-use core::ops::Add;
 use crate::{CLINT_MTIMECMP, kmain};
 use crate::memlayout::CLINT_MTIME;
 use crate::riscv::*;
 use crate::param::*;
 
-static timer_scratch: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
+static TIMER_SCRATCH: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
 
 #[repr(C, align(16))]
 struct Stack0Aligned([u8; 4096 * NCPU]);
@@ -72,7 +67,7 @@ fn timerinit() {
     // scratch[0..2] : space for timervec to save registers.
     // scratch[3] : address of CLINT MTIMECMP register.
     // scratch[4] : desired interval (in cycles) between timer interrupts.
-    let mut scratch = timer_scratch[id as usize];
+    let mut scratch = TIMER_SCRATCH[id as usize];
     scratch[3] = CLINT_MTIMECMP!(id);
     scratch[4] = interval;
     let raw = &scratch as *const u64;

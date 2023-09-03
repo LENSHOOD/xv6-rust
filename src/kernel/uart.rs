@@ -129,9 +129,7 @@ impl Uart {
         // }
 
         // wait for Transmit Holding Empty to be set in LSR.
-        while (ReadReg!(LSR) & LSR_TX_IDLE) == 0 {
-            ;
-        }
+        while (ReadReg!(LSR) & LSR_TX_IDLE) == 0 {}
         WriteReg!(THR, c);
 
         pop_off();

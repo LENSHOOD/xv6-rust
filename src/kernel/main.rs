@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
+#![feature(strict_provenance)]
 
 extern crate alloc;
 
@@ -19,14 +20,8 @@ mod string;
 mod vm;
 
 use core::alloc::{GlobalAlloc, Layout};
-use core::borrow::BorrowMut;
-use core::fmt::Write;
-use core::ops::Add;
 use crate::console::Console;
 use crate::kalloc::{KMEM, KMem};
-use crate::memlayout::CLINT_MTIME;
-use crate::riscv::*;
-use crate::param::*;
 use crate::printf::{Printer, PRINTER};
 use crate::proc::cpuid;
 use crate::vm::kvminit;
@@ -81,7 +76,7 @@ static ALLOCATOR: NoopAllocator = NoopAllocator{};
 pub extern "C"
 fn kmain() {
     if cpuid() == 0 {
-        let mut console = Console::init();
+        let console = Console::init();
         unsafe { PRINTER = Some(Printer::init(console)); }
         printf!("\nxv6 kernel is booting\n\n");
 
@@ -92,7 +87,7 @@ fn kmain() {
             printf!("Ready to alloc\n");
             let first_page = KMEM.as_mut().unwrap().kalloc();
             printf!("First page starts at : 0x{:x}", first_page as usize);
-            KMEM.as_mut().unwrap().kfree(first_page)
+            KMEM.as_mut().unwrap().kfree(first_page);
             printf!("Page freed\n");
         }
 
