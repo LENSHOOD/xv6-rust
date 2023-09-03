@@ -78,19 +78,21 @@ fn kmain() {
     if cpuid() == 0 {
         let console = Console::init();
         unsafe { PRINTER = Some(Printer::init(console)); }
-        printf!("\nxv6 kernel is booting\n\n");
-
+        printf!("\nxv6 kernel is booting...\n\n");
         unsafe { KMEM = Some(KMem::kinit()) }
+        printf!("\nKernel memory initialized.\n\n");
 
         // debug info
         unsafe {
             printf!("Ready to alloc\n");
             let first_page = KMEM.as_mut().unwrap().kalloc();
-            printf!("First page starts at : 0x{:x}", first_page as usize);
+            printf!("First page starts at : 0x{:x}\n", first_page as usize);
             KMEM.as_mut().unwrap().kfree(first_page);
             printf!("Page freed\n");
         }
 
+        printf!("Initializing virtual memory...\n");
         kvminit();
+        printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap())
     }
 }

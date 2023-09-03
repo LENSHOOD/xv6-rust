@@ -325,6 +325,7 @@ pub fn sfence_vma() {
 /// VPN = Visual Page Number, PPN = Physical Page Number
 /// Visual Addr(Sv39): | (9-bits) level-0 VPN | (9-bits) level-1 VPN | (9-bits) level-2 VPN | 12-bit offset |
 /// PTE: | (9-bits) level-0 PPN | (9-bits) level-1 PPN | (9-bits) level-2 PPN | (10-bits) RSW(2) D A G U X W R V |
+#[derive(Debug)]
 pub struct Pte(pub usize);
 
 pub const PTE_SIZE: usize = PGSIZE / 8;
@@ -333,6 +334,7 @@ pub const PTE_SIZE: usize = PGSIZE / 8;
 ///     >_> Level1-PhysicalPageAddr(PTE >> 10 << 12) -> Level1-PGTBL[(some idx less than 512)]:PTE
 ///         >_> Level2-PhysicalPageAddr(PTE >> 10 << 12) -> Level2-PGTBL[(some idx less than 512)]:PTE
 ///             >_> PhysicalPageAddr(PTE >> 10 << 12)
+#[derive(Debug)]
 pub struct PageTable(pub [Pte; PTE_SIZE]);  // 512 PTEs
 
 pub const PGSIZE: usize = 4096; // bytes per page
