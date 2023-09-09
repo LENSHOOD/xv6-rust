@@ -29,11 +29,10 @@ impl KMem {
             freelist: ptr::null_mut(),
         };
         unsafe {
-
             Self::freerange(&mut k_mem, (&mut end) as *mut u8, PHYSTOP as *mut u8);
         }
 
-        printf!("finish init \n");
+        printf!("finish init from {:x}, to {:x}", unsafe { (&end as *const u8).expose_addr() }, PHYSTOP);
         k_mem
     }
 

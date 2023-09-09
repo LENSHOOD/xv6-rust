@@ -24,7 +24,6 @@ use crate::console::Console;
 use crate::kalloc::{KMEM, KMem};
 use crate::printf::{Printer, PRINTER};
 use crate::proc::cpuid;
-use crate::vm::kvminit;
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS
@@ -92,7 +91,11 @@ fn kmain() {
         }
 
         printf!("Initializing virtual memory...\n");
-        kvminit();
-        printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap())
+        vm::kvminit();
+        // printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
+
+        printf!("Turn on paging...\n");
+        vm::kvminithart();
+        printf!("Paging turned on.\n");
     }
 }

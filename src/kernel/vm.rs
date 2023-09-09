@@ -1,8 +1,8 @@
 use crate::kalloc::KMEM;
-use crate::{PA2PTE, PGROUNDDOWN, printf, PTE2PA, PX};
+use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, printf, PTE2PA, PX};
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
 use crate::proc::proc_mapstacks;
-use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_V, PTE_W, PTE_X};
+use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp};
 use crate::string::memset;
 
 /*
@@ -10,9 +10,10 @@ use crate::string::memset;
  */
 pub static mut KERNEL_PAGETABLE: Option<&'static PageTable> = None;
 
-const ETEXT: [u8; 0] = [0; 0];  // kernel.ld sets this to end of kernel code.
-
-const trampoline: [u8; 0]= [0; 0]; // trampoline.S
+extern "C" {
+    static etext: u8;  // kernel.ld sets this to end of kernel code.
+    static trampoline: u8; // trampoline.S
+}
 
 // Make a direct-map page table for the kernel.
 fn kvmmake<'a>() -> &'a PageTable {
@@ -35,7 +36,7 @@ fn kvmmake<'a>() -> &'a PageTable {
     kvmmap(kpgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
     printf!("PLIC Mapped.\n\n");
 
-    let etext_addr = (&ETEXT as *const u8).expose_addr();
+    let etext_addr = (unsafe { &etext } as *const u8).expose_addr();
     // map kernel text executable and read-only.
     kvmmap(kpgtbl, KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
     printf!("KERNBASE Mapped.\n\n");
@@ -46,7 +47,7 @@ fn kvmmake<'a>() -> &'a PageTable {
     kvmmap(kpgtbl, etext_addr + PGSIZE, etext_addr + PGSIZE, PHYSTOP - etext_addr, PTE_R | PTE_W);
     printf!("etext_addr Mapped.\n\n");
 
-    let trapoline_addr = (&trampoline as *const u8) as usize;
+    let trapoline_addr = (unsafe { &trampoline } as *const u8) as usize;
     // map the trampoline for trap entry/exit to
     // the highest virtual address in the kernel.
     kvmmap(kpgtbl, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X);
@@ -87,7 +88,7 @@ fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, pe
 
     let mut a: usize = PGROUNDDOWN!(va);
     let last: usize = PGROUNDDOWN!(va + size - 1);
-    printf!("a: {:x}, last: {:x}\n\n", a, last);
+    // printf!("a: {:x}, last: {:x}\n\n", a, last);
 
     loop {
         let pte: Option<&mut Pte> = walk(pagetable, a, 1);
@@ -156,4 +157,19 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
     Some(&mut (curr_pgtbl.0)[PX!(0, va)])
 }
 
+// Switch h/w page table register to the kernel's page table,
+// and enable paging.
+pub fn kvminithart() {
+    // wait for any previous writes to the page table memory to finish.
+    sfence_vma();
 
+    let addr = unsafe { (KERNEL_PAGETABLE.unwrap() as *const PageTable).expose_addr() };
+    printf!("addr: {:x}\n", addr);
+    let satp = MAKE_SATP!(addr);
+    printf!("satp: {:x}\n", satp);
+    w_satp(satp);
+
+    printf!("3");
+    // flush stale entries from the TLB.
+    sfence_vma();
+}
