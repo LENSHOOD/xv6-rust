@@ -394,7 +394,7 @@ macro_rules! PXSHIFT {
 #[macro_export]
 macro_rules! PX {
     ( $level:expr,  $va:expr) => {
-        (($va) as usize >> crate::PXSHIFT!($level)) & crate::riscv::PXMASK
+        (($va) >> crate::PXSHIFT!($level)) & crate::riscv::PXMASK
     };
 }
 

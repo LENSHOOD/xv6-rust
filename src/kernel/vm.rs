@@ -10,7 +10,7 @@ use crate::string::memset;
  */
 pub static mut KERNEL_PAGETABLE: Option<&'static PageTable> = None;
 
-extern "C" {
+extern {
     static etext: u8;  // kernel.ld sets this to end of kernel code.
     static trampoline: u8; // trampoline.S
 }
@@ -39,12 +39,11 @@ fn kvmmake<'a>() -> &'a PageTable {
     let etext_addr = (unsafe { &etext } as *const u8).expose_addr();
     // map kernel text executable and read-only.
     kvmmap(kpgtbl, KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
+    printf!("etext_addr: {:x}, KERNBASE: {:x}, PHYSTOP: {:x}, size: {}\n", etext_addr, KERNBASE, PHYSTOP, etext_addr - KERNBASE);
     printf!("KERNBASE Mapped.\n\n");
-    printf!("etext_addr: {:x}, phystop: {:x}, pgsize: {:x}\n\n", etext_addr, PHYSTOP, PHYSTOP - etext_addr);
 
     // map kernel data and the physical RAM we'll make use of.
-    // TODO: different with original version, if we do not add one more page, then the same PTE remap will occur, don't know why yet
-    kvmmap(kpgtbl, etext_addr + PGSIZE, etext_addr + PGSIZE, PHYSTOP - etext_addr, PTE_R | PTE_W);
+    kvmmap(kpgtbl, etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
     printf!("etext_addr Mapped.\n\n");
 
     let trapoline_addr = (unsafe { &trampoline } as *const u8) as usize;
@@ -149,6 +148,7 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
                 memset(next_level_pgtbl, 0, PGSIZE);
 
                 *pte = Pte(PA2PTE!(next_level_pgtbl.expose_addr()) | PTE_V);
+                printf!("[{}] pte: {:x}\n", PX!(level, va), pte.0);
                 curr_pgtbl = (next_level_pgtbl as *mut PageTable).as_mut().unwrap();
             }
         }
@@ -164,12 +164,9 @@ pub fn kvminithart() {
     sfence_vma();
 
     let addr = unsafe { (KERNEL_PAGETABLE.unwrap() as *const PageTable).expose_addr() };
-    printf!("addr: {:x}\n", addr);
     let satp = MAKE_SATP!(addr);
-    printf!("satp: {:x}\n", satp);
     w_satp(satp);
 
-    printf!("3");
     // flush stale entries from the TLB.
     sfence_vma();
 }

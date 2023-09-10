@@ -72,8 +72,7 @@ unsafe impl GlobalAlloc for NoopAllocator {
 static ALLOCATOR: NoopAllocator = NoopAllocator{};
 
 #[no_mangle]
-pub extern "C"
-fn kmain() {
+pub extern "C" fn kmain() {
     if cpuid() == 0 {
         let console = Console::init();
         unsafe { PRINTER = Some(Printer::init(console)); }

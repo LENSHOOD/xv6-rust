@@ -1,3 +1,4 @@
+use core::arch::asm;
 use crate::{CLINT_MTIMECMP, kmain};
 use crate::memlayout::CLINT_MTIME;
 use crate::riscv::*;
@@ -45,7 +46,7 @@ fn start() {
 
     // switch to supervisor mode and jump to main().
     unsafe {
-        core::arch::asm!("mret")
+        asm!("mret")
     }
 }
 
