@@ -12,12 +12,15 @@ mod param;
 mod uart;
 mod start;
 mod spinlock;
+mod sleeplock;
 mod proc;
 mod console;
 mod printf;
 mod kalloc;
 mod string;
 mod vm;
+mod file;
+mod pipe;
 
 use core::alloc::{GlobalAlloc, Layout};
 use crate::console::Console;
