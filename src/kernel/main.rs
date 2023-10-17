@@ -19,8 +19,6 @@ mod printf;
 mod kalloc;
 mod string;
 mod vm;
-mod file;
-mod pipe;
 
 use core::alloc::{GlobalAlloc, Layout};
 use crate::console::Console;
@@ -99,5 +97,9 @@ pub extern "C" fn kmain() {
         printf!("Turn on paging...\n");
         vm::kvminithart();
         printf!("Paging turned on.\n");
+
+        printf!("Init processes...\n");
+        proc::procinit();
+        printf!("Processes initialized\n");
     }
 }

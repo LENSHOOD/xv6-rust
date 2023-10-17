@@ -1,14 +1,13 @@
-use crate::file::File;
 use crate::kalloc::KMEM;
 use crate::KSTACK;
-use crate::param::{NCPU, NOFILE, NPROC};
+use crate::param::{NCPU, NPROC};
 use crate::proc::Procstate::UNUSED;
 use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::vm::kvmmap;
 
 // Saved registers for kernel context switches.
-#[derive(Default, Copy, Clone)]
+#[derive(Copy, Clone)]
 struct Context {
     ra: u64,
     sp: u64,
@@ -29,19 +28,30 @@ struct Context {
 }
 
 // Per-CPU state.
-#[derive(Default, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct Cpu<'a> {
-    proc: Option<&'a mut Proc<'a>>,
+    proc: Option<&'a Proc<'a>>,
     // The process running on this cpu, or null.
-    context: Context,
+    context: Option<Context>,
     // swtch() here to enter scheduler().
     pub noff: u8,
     // Depth of push_off() nesting.
     pub intena: bool,          // Were interrupts enabled before push_off()?
 }
 
-static mut CPUS: [Cpu; NCPU] = Default::default();
-static mut PROCS: [Proc; NPROC] = Default::default();
+impl<'a> Cpu<'a> {
+    const fn default() -> Self {
+        Cpu {
+            proc: None,
+            context: None,
+            noff: 0,
+            intena: false,
+        }
+    }
+}
+
+static mut CPUS: [Cpu; NCPU] = [Cpu::default(); NCPU];
+static mut PROCS: [Proc; NPROC] = [Proc::default(); NPROC];
 
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
@@ -99,43 +109,70 @@ struct Trapframe {
     /* 280 */ t6: u64,
 }
 
+#[derive(Copy, Clone)]
 enum Procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }
 
 // Per-process state
-#[derive(Default, Copy, Clone)]
-struct Proc<'a> {
-    lock: Spinlock,
+#[derive(Copy, Clone)]
+pub struct Proc<'a> {
+    lock: Option<Spinlock>,
 
     // p->lock must be held when using these:
-    state: Procstate,
-    // Process state
-    chan: *const u8,
-    // If non-zero, sleeping on chan
-    killed: u8,
-    // If non-zero, have been killed
-    xstate: u8,
-    // Exit status to be returned to parent's wait
+    state: Procstate, // Process state
+    chan: Option<*const u8>, // If non-zero, sleeping on chan
+    killed: u8, // If non-zero, have been killed
+    xstate: u8, // Exit status to be returned to parent's wait
     pub pid: u32,                     // Process ID
 
     // wait_lock must be held when using this:
-    parent: &'a Proc<'a>,         // Parent process
+    parent: Option<&'a Proc<'a>>,         // Parent process
 
     // these are private to the process, so p->lock need not be held.
-    kstack: usize,
-    // Virtual address of kernel stack
-    sz: usize,
-    // Size of process memory (bytes)
-    pagetable: * PageTable,
-    // User page table
-    trapframe: * Trapframe,
-    // data page for trampoline.S
-    context: Context,
-    // swtch() here to run process
-    ofile: [&'a File; NOFILE],
-    // Open files
+    kstack: usize, // Virtual address of kernel stack
+    sz: usize, // Size of process memory (bytes)
+    pagetable: Option<&'a PageTable>, // User page table
+    trapframe: Option<&'a Trapframe>, // data page for trampoline.S
+    context: Context, // swtch() here to run process
+    // TODO: open file
+    // ofile: [&'own File; NOFILE], // Open files
     // TODO: inode
     // struct inode *cwd;           // Current directory
-    name: &'static str,               // Process name (debugging)
+    name: &'a str,               // Process name (debugging)
+}
+
+impl<'a> Proc<'a> {
+    const fn default() -> Self {
+        Proc {
+            lock: None,
+            state: UNUSED,
+            chan: None,
+            killed: 0,
+            xstate: 0,
+            pid: 0,
+            parent: None,
+            kstack: 0,
+            sz: 0,
+            pagetable: None,
+            trapframe: None,
+            context: Context {
+                ra: 0,
+                sp: 0,
+                s0: 0,
+                s1: 0,
+                s2: 0,
+                s3: 0,
+                s4: 0,
+                s5: 0,
+                s6: 0,
+                s7: 0,
+                s8: 0,
+                s9: 0,
+                s10: 0,
+                s11: 0,
+            },
+            name: "",
+        }
+    }
 }
 
 static nextpid: u32 = 1;
@@ -155,14 +192,14 @@ pub fn cpuid() -> usize {
 
 // Return this CPU's cpu struct.
 // Interrupts must be disabled.
-pub fn mycpu() -> &'static mut Cpu {
+pub fn mycpu() -> &'static mut Cpu<'static> {
     unsafe {
         &mut CPUS[cpuid()]
     }
 }
 
 // Return the current struct proc *, or zero if none.
-pub fn myproc<'a>() -> &'a Proc {
+pub fn myproc<'a>() -> &'a Proc<'a> {
     push_off();
     let c = mycpu();
     let p = &c.proc;
@@ -189,12 +226,12 @@ pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
 // initialize the proc table.
 pub fn procinit() {
     unsafe {
-        pid_lock.unwrap() = Spinlock::init_lock("nextpid");
-        wait_lock.unwrap() = Spinlock::init_lock("wait_lock");
+        pid_lock = Some(Spinlock::init_lock("nextpid"));
+        wait_lock = Some(Spinlock::init_lock("wait_lock"));
 
         for i in 0..NPROC {
             let p = &mut PROCS[i];
-            p.lock = Spinlock::init_lock("proc");
+            p.lock = Some(Spinlock::init_lock("proc"));
             p.state = UNUSED;
             p.kstack = KSTACK!(i)
         }

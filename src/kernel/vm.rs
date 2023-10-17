@@ -22,39 +22,39 @@ fn kvmmake<'a>() -> &'a PageTable {
         memset(pg, 0, PGSIZE);
         (pg as *mut PageTable).as_mut().unwrap()
     };
-    printf!("Root Page Table Allocated.\n\n");
+    printf!("Root Page Table Allocated.\n");
 
     // uart registers
     kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
-    printf!("UART0 Mapped.\n\n");
+    printf!("UART0 Mapped.\n");
 
     // virtio mmio disk interface
     kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-    printf!("VIRTIO0 Mapped.\n\n");
+    printf!("VIRTIO0 Mapped.\n");
 
     // PLIC
     kvmmap(kpgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-    printf!("PLIC Mapped.\n\n");
+    printf!("PLIC Mapped.\n");
 
     let etext_addr = (unsafe { &etext } as *const u8).expose_addr();
     // map kernel text executable and read-only.
     kvmmap(kpgtbl, KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
     printf!("etext_addr: {:x}, KERNBASE: {:x}, PHYSTOP: {:x}, size: {}\n", etext_addr, KERNBASE, PHYSTOP, etext_addr - KERNBASE);
-    printf!("KERNBASE Mapped.\n\n");
+    printf!("KERNBASE Mapped.\n");
 
     // map kernel data and the physical RAM we'll make use of.
     kvmmap(kpgtbl, etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
-    printf!("etext_addr Mapped.\n\n");
+    printf!("etext_addr Mapped.\n");
 
     let trapoline_addr = (unsafe { &trampoline } as *const u8) as usize;
     // map the trampoline for trap entry/exit to
     // the highest virtual address in the kernel.
     kvmmap(kpgtbl, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X);
-    printf!("TRAMPOLINE Mapped.\n\n");
+    printf!("TRAMPOLINE Mapped.\n");
 
     // allocate and map a kernel stack for each process.
     proc_mapstacks(kpgtbl);
-    printf!("Proc Kernel Stack Mapped.\n\n");
+    printf!("Proc Kernel Stack Mapped.\n");
 
     kpgtbl
 }
@@ -148,7 +148,7 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
                 memset(next_level_pgtbl, 0, PGSIZE);
 
                 *pte = Pte(PA2PTE!(next_level_pgtbl.expose_addr()) | PTE_V);
-                printf!("[{}] pte: {:x}\n", PX!(level, va), pte.0);
+                // printf!("[{}] pte: {:x}\n", PX!(level, va), pte.0);
                 curr_pgtbl = (next_level_pgtbl as *mut PageTable).as_mut().unwrap();
             }
         }
