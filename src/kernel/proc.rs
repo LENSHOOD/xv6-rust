@@ -176,12 +176,12 @@ impl<'a> Proc<'a> {
 }
 
 static nextpid: u32 = 1;
-static mut pid_lock: Option<Spinlock> = None;
+static mut PID_LOCK: Option<Spinlock> = None;
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
 // must be acquired before any p->lock.
-static mut wait_lock: Option<Spinlock> = None;
+static mut WAIT_LOCK: Option<Spinlock> = None;
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -226,8 +226,8 @@ pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
 // initialize the proc table.
 pub fn procinit() {
     unsafe {
-        pid_lock = Some(Spinlock::init_lock("nextpid"));
-        wait_lock = Some(Spinlock::init_lock("wait_lock"));
+        PID_LOCK = Some(Spinlock::init_lock("nextpid"));
+        WAIT_LOCK = Some(Spinlock::init_lock("wait_lock"));
 
         for i in 0..NPROC {
             let p = &mut PROCS[i];

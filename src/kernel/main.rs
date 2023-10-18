@@ -19,6 +19,7 @@ mod printf;
 mod kalloc;
 mod string;
 mod vm;
+mod trap;
 
 use core::alloc::{GlobalAlloc, Layout};
 use crate::console::Console;
@@ -78,28 +79,34 @@ pub extern "C" fn kmain() {
         let console = Console::init();
         unsafe { PRINTER = Some(Printer::init(console)); }
         printf!("\nxv6 kernel is booting...\n\n");
-        unsafe { KMEM = Some(KMem::kinit()) }
+        unsafe { KMEM = Some(KMem::kinit()) } // physical page allocator
         printf!("\nKernel memory initialized.\n\n");
 
         // debug info
-        unsafe {
-            printf!("Ready to alloc\n");
-            let first_page = KMEM.as_mut().unwrap().kalloc();
-            printf!("First page starts at : 0x{:x}\n", first_page as usize);
-            KMEM.as_mut().unwrap().kfree(first_page);
-            printf!("Page freed\n");
-        }
+        // unsafe {
+        //     printf!("Ready to alloc\n");
+        //     let first_page = KMEM.as_mut().unwrap().kalloc();
+        //     printf!("First page starts at : 0x{:x}\n", first_page as usize);
+        //     KMEM.as_mut().unwrap().kfree(first_page);
+        //     printf!("Page freed\n");
+        // }
 
         printf!("Initializing virtual memory...\n");
-        vm::kvminit();
+        vm::kvminit(); // create kernel page table
         // printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
 
         printf!("Turn on paging...\n");
-        vm::kvminithart();
+        vm::kvminithart(); // turn on paging
         printf!("Paging turned on.\n");
 
         printf!("Init processes...\n");
-        proc::procinit();
+        proc::procinit(); // process table
         printf!("Processes initialized\n");
+
+        printf!("Init trap...\n");
+        trap::trapinit(); // trap vectors
+        trap::trapinithart(); // install kernel trap vector
+        printf!("Trap initialized\n");
+
     }
 }
