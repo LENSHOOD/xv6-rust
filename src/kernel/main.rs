@@ -20,7 +20,7 @@ mod kalloc;
 mod string;
 mod vm;
 mod trap;
-
+mod plic;
 use core::alloc::{GlobalAlloc, Layout};
 use crate::console::Console;
 use crate::kalloc::{KMEM, KMem};
@@ -108,5 +108,9 @@ pub extern "C" fn kmain() {
         trap::trapinithart(); // install kernel trap vector
         printf!("Trap initialized\n");
 
+        printf!("Init plic...\n");
+        plic::plicinit(); // set up interrupt controller
+        plic::plicinithart(); // ask PLIC for device interrupts
+        printf!("Plic initialized\n");
     }
 }
