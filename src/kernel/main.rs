@@ -21,6 +21,8 @@ mod string;
 mod vm;
 mod trap;
 mod plic;
+mod bio;
+mod fs;
 use core::alloc::{GlobalAlloc, Layout};
 use crate::console::Console;
 use crate::kalloc::{KMEM, KMem};
@@ -80,7 +82,7 @@ pub extern "C" fn kmain() {
         unsafe { PRINTER = Some(Printer::init(console)); }
         printf!("\nxv6 kernel is booting...\n\n");
         unsafe { KMEM = Some(KMem::kinit()) } // physical page allocator
-        printf!("\nKernel memory initialized.\n\n");
+        // printf!("\nKernel memory initialized.\n\n");
 
         // debug info
         // unsafe {
@@ -91,26 +93,30 @@ pub extern "C" fn kmain() {
         //     printf!("Page freed\n");
         // }
 
-        printf!("Initializing virtual memory...\n");
+        // printf!("Initializing virtual memory...\n");
         vm::kvminit(); // create kernel page table
         // printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
 
-        printf!("Turn on paging...\n");
+        // printf!("Turn on paging...\n");
         vm::kvminithart(); // turn on paging
-        printf!("Paging turned on.\n");
+        // printf!("Paging turned on.\n");
 
-        printf!("Init processes...\n");
+        // printf!("Init processes...\n");
         proc::procinit(); // process table
-        printf!("Processes initialized\n");
+        // printf!("Processes initialized\n");
 
-        printf!("Init trap...\n");
+        // printf!("Init trap...\n");
         trap::trapinit(); // trap vectors
         trap::trapinithart(); // install kernel trap vector
-        printf!("Trap initialized\n");
+        // printf!("Trap initialized\n");
 
-        printf!("Init plic...\n");
+        // printf!("Init plic...\n");
         plic::plicinit(); // set up interrupt controller
         plic::plicinithart(); // ask PLIC for device interrupts
-        printf!("Plic initialized\n");
+        // printf!("Plic initialized\n");
+
+        printf!("Init buffer cache...\n");
+        bio::binit(); // // buffer cache
+        printf!("Buffer cache initialized\n");
     }
 }

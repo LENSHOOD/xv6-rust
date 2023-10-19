@@ -2,6 +2,7 @@ use crate::proc::myproc;
 use crate::spinlock::Spinlock;
 
 // Long-term locks for processes
+#[derive(Copy, Clone)]
 pub struct Sleeplock {
     locked: u64,       // Is the lock held?
     lk: Spinlock, // spinlock protecting this sleep lock
@@ -12,8 +13,7 @@ pub struct Sleeplock {
 }
 
 impl Sleeplock {
-    pub fn init_lock(name: &'static str) -> Self
-    {
+    pub fn init_lock(name: &'static str) -> Self {
         Sleeplock {
             locked: 0,
             lk: Spinlock::init_lock("sleep lock"),
