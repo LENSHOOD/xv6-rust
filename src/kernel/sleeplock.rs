@@ -13,7 +13,7 @@ pub struct Sleeplock {
 }
 
 impl Sleeplock {
-    pub fn init_lock(name: &'static str) -> Self {
+    pub const fn init_lock(name: &'static str) -> Self {
         Sleeplock {
             locked: 0,
             lk: Spinlock::init_lock("sleep lock"),

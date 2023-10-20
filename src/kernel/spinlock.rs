@@ -11,7 +11,7 @@ pub struct Spinlock {
 }
 
 impl Spinlock {
-    pub fn init_lock(name: &'static str) -> Self {
+    pub const fn init_lock(name: &'static str) -> Self {
         Spinlock {
             locked: 0,
             name,

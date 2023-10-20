@@ -46,7 +46,7 @@ fn kvmmake<'a>() -> &'a PageTable {
     kvmmap(kpgtbl, etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
     // printf!("etext_addr Mapped.\n");
 
-    let trapoline_addr = (unsafe { &trampoline } as *const u8) as usize;
+    let trapoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
     // map the trampoline for trap entry/exit to
     // the highest virtual address in the kernel.
     kvmmap(kpgtbl, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X);

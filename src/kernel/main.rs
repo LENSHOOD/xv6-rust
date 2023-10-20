@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(panic_info_message)]
 #![feature(strict_provenance)]
+#![feature(const_mut_refs)]
 
 extern crate alloc;
 

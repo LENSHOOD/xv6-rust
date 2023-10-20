@@ -10,13 +10,12 @@ _entry:
         # with a 4096-byte stack per CPU.
         # sp = stack0 + (hartid * 4096)
         la sp, stack0
-        ## TODO: 4096-bytes kernel stack is somehow too small to hold all the data along with system boot
-        li a0, 1024*32
+        li a0, 1024*4
         csrr a1, mhartid
         addi a1, a1, 1
         mul a0, a0, a1
         add sp, sp, a0
-        # jump to start() in main.rs
+        # jump to start() in start.rs
         call start
 spin:
         j spin
