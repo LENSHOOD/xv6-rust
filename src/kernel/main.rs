@@ -98,26 +98,28 @@ pub extern "C" fn kmain() {
         vm::kvminit(); // create kernel page table
         // printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
 
-        // printf!("Turn on paging...\n");
+        // debug_log!("Turn on paging...\n");
         vm::kvminithart(); // turn on paging
-        // printf!("Paging turned on.\n");
+        debug_log!("Paging turned on.\n");
 
-        // printf!("Init processes...\n");
+        debug_log!("Init processes...\n");
         proc::procinit(); // process table
-        // printf!("Processes initialized\n");
+        debug_log!("Processes initialized\n");
 
-        // printf!("Init trap...\n");
+        debug_log!("Init trap...\n");
         trap::trapinit(); // trap vectors
         trap::trapinithart(); // install kernel trap vector
-        // printf!("Trap initialized\n");
+        debug_log!("Trap initialized\n");
 
-        // printf!("Init plic...\n");
+        debug_log!("Init plic...\n");
         plic::plicinit(); // set up interrupt controller
         plic::plicinithart(); // ask PLIC for device interrupts
-        // printf!("Plic initialized\n");
+        debug_log!("Plic initialized\n");
 
-        printf!("Init buffer cache...\n");
+        debug_log!("Init buffer cache...\n");
         bio::binit(); // // buffer cache
-        printf!("Buffer cache initialized\n");
+        debug_log!("Buffer cache initialized\n");
+
+        printf!("System boot successful")
     }
 }
