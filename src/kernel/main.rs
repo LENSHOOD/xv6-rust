@@ -24,6 +24,9 @@ mod trap;
 mod plic;
 mod bio;
 mod fs;
+mod file;
+mod pipe;
+mod stat;
 use core::alloc::{GlobalAlloc, Layout};
 use crate::kalloc::{KMEM, KMem};
 use crate::printf::Printer;
@@ -110,8 +113,11 @@ pub extern "C" fn kmain() {
         plic::plicinithart(); // ask PLIC for device interrupts
         debug_log!("Plic initialized\n");
 
-        bio::binit(); // // buffer cache
+        bio::binit(); // buffer cache
         debug_log!("Buffer cache initialized\n");
+
+        fs::fs::iinit(); // inode table
+        debug_log!("INode table initialized\n");
 
         printf!("\nSystem boot successful\n")
     }
