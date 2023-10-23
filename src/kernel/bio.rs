@@ -16,7 +16,6 @@
 use core::ptr::NonNull;
 use crate::fs::BSIZE;
 use crate::param::NBUF;
-use crate::printf;
 use crate::sleeplock::Sleeplock;
 use crate::spinlock::Spinlock;
 
@@ -93,7 +92,7 @@ pub fn binit() {
             b.next = head_ptr.next;
             b.prev = Some(BCACHE.head);
 
-            let mut head_next = head_ptr.next.unwrap();
+            let head_next = head_ptr.next.unwrap();
             (*head_next.as_ptr()).prev = NonNull::new(b as *mut Buf);
             head_ptr.next = NonNull::new(b as *mut Buf);
         }

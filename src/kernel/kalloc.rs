@@ -1,6 +1,6 @@
 use core::ptr;
 use crate::memlayout::PHYSTOP;
-use crate::{PGROUNDUP, printf};
+use crate::PGROUNDUP;
 use crate::riscv::PGSIZE;
 use crate::spinlock::Spinlock;
 use crate::string::memset;

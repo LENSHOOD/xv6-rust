@@ -25,9 +25,8 @@ mod plic;
 mod bio;
 mod fs;
 use core::alloc::{GlobalAlloc, Layout};
-use crate::console::Console;
 use crate::kalloc::{KMEM, KMem};
-use crate::printf::{Printer, PRINTER};
+use crate::printf::Printer;
 use crate::proc::cpuid;
 
 // ///////////////////////////////////
@@ -65,11 +64,11 @@ fn abort() -> ! {
 struct NoopAllocator{}
 unsafe impl Sync for NoopAllocator {}
 unsafe impl GlobalAlloc for NoopAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
         todo!()
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
         todo!()
     }
 }
@@ -114,6 +113,6 @@ pub extern "C" fn kmain() {
         bio::binit(); // // buffer cache
         debug_log!("Buffer cache initialized\n");
 
-        printf!("System boot successful")
+        printf!("\nSystem boot successful\n")
     }
 }

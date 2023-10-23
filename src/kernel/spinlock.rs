@@ -88,12 +88,10 @@ pub fn push_off() {
 
     intr_off();
     let mut cpu = mycpu();
-    unsafe {
-        if (*cpu).noff == 0 {
-            (*cpu).intena = old;
-        }
-        (*cpu).noff += 1;
+    if (*cpu).noff == 0 {
+        (*cpu).intena = old;
     }
+    (*cpu).noff += 1;
 }
 
 pub fn pop_off() {
@@ -102,13 +100,11 @@ pub fn pop_off() {
         panic!("pop_off - interruptible");
     }
 
-    unsafe {
-        if (*cpu).noff < 1 {
-            panic!("pop_off");
-        }
-        (*cpu).noff -= 1;
-        if (*cpu).noff == 0 && (*cpu).intena {
-            intr_on();
-        }
+    if (*cpu).noff < 1 {
+        panic!("pop_off");
+    }
+    (*cpu).noff -= 1;
+    if (*cpu).noff == 0 && (*cpu).intena {
+        intr_on();
     }
 }

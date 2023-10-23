@@ -175,7 +175,7 @@ impl<'a> Proc<'a> {
     }
 }
 
-static nextpid: u32 = 1;
+static NEXT_PID: u32 = 1;
 static mut PID_LOCK: Option<Spinlock> = None;
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
