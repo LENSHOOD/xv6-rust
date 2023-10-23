@@ -79,11 +79,10 @@ static ALLOCATOR: NoopAllocator = NoopAllocator{};
 #[no_mangle]
 pub extern "C" fn kmain() {
     if cpuid() == 0 {
-        let console = Console::init();
-        unsafe { PRINTER = Some(Printer::init(console)); }
+        Printer::init();
         printf!("\nxv6 kernel is booting...\n\n");
         unsafe { KMEM = Some(KMem::kinit()) } // physical page allocator
-        // printf!("\nKernel memory initialized.\n\n");
+        debug_log!("Kernel memory initialized.\n");
 
         // debug info
         // unsafe {
@@ -94,29 +93,24 @@ pub extern "C" fn kmain() {
         //     printf!("Page freed\n");
         // }
 
-        // printf!("Initializing virtual memory...\n");
         vm::kvminit(); // create kernel page table
-        // printf!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
+        // debug_log!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
+        debug_log!("Virtual memory initialized.\n");
 
-        // debug_log!("Turn on paging...\n");
         vm::kvminithart(); // turn on paging
         debug_log!("Paging turned on.\n");
 
-        debug_log!("Init processes...\n");
         proc::procinit(); // process table
         debug_log!("Processes initialized\n");
 
-        debug_log!("Init trap...\n");
         trap::trapinit(); // trap vectors
         trap::trapinithart(); // install kernel trap vector
         debug_log!("Trap initialized\n");
 
-        debug_log!("Init plic...\n");
         plic::plicinit(); // set up interrupt controller
         plic::plicinithart(); // ask PLIC for device interrupts
         debug_log!("Plic initialized\n");
 
-        debug_log!("Init buffer cache...\n");
         bio::binit(); // // buffer cache
         debug_log!("Buffer cache initialized\n");
 

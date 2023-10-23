@@ -57,7 +57,16 @@ pub struct Uart {
 }
 
 impl Uart {
-    pub fn init() -> Self {
+    pub const fn create() -> Self {
+        Self {
+            uart_tx_lock: Spinlock::init_lock("uart"),
+            uart_tx_buf: [0; UART_TX_BUF_SIZE],
+            uart_tx_w: 0,
+            uart_tx_r: 0,
+        }
+    }
+
+    pub fn init() {
         // disable interrupts.
         WriteReg!(IER, 0x00);
 
@@ -79,13 +88,6 @@ impl Uart {
 
         // enable transmit and receive interrupts.
         WriteReg!(IER, IER_TX_ENABLE | IER_RX_ENABLE);
-
-        Self {
-            uart_tx_lock: Spinlock::init_lock("uart"),
-            uart_tx_buf: [0; UART_TX_BUF_SIZE],
-            uart_tx_w: 0,
-            uart_tx_r: 0,
-        }
     }
 
     /// add a character to the output buffer and tell the

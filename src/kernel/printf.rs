@@ -2,16 +2,18 @@ use core::fmt::{Arguments, Write};
 use crate::console::Console;
 use crate::spinlock::Spinlock;
 
-pub static mut PRINTER: Option<Printer> = None;
+pub static mut PRINTER: Printer = Printer {
+    lock: Spinlock::init_lock("pr"),
+    console: Console::create(),
+    locking: true,
+};
 
 #[macro_export]
 macro_rules! printf
 {
 	($($arg:tt)*) => {
         unsafe {
-            if let Some(printer) = &mut crate::printf::PRINTER {
-                printer.printf(core::format_args!($($arg)*))
-            }
+            crate::printf::PRINTER.printf(core::format_args!($($arg)*))
         }
     };
 }
@@ -24,12 +26,8 @@ pub struct Printer {
 }
 
 impl Printer {
-    pub fn init(console: Console) -> Self {
-        Printer {
-            lock: Spinlock::init_lock("pr"),
-            console,
-            locking: true,
-        }
+    pub fn init() {
+        Console::init();
     }
 
     // Print to the console. only understands %d, %x, %p, %s.

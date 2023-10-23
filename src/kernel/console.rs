@@ -18,7 +18,17 @@ pub struct Console {
 }
 
 impl Console {
-    pub fn init() -> Self {
+    pub const fn create() -> Self {
+        Self {
+            lock: Spinlock::init_lock("cons"),
+            uart: Uart::create(),
+            buf: [0; INPUT_BUF_SIZE],
+            r: 0,
+            w: 0,
+            e: 0,
+        }
+    }
+    pub fn init() {
 
         // TODO: unimplemented
         // connect read and write system calls
@@ -26,14 +36,7 @@ impl Console {
         // devsw[CONSOLE].read = consoleread;
         // devsw[CONSOLE].write = consolewrite;
 
-        Self {
-            lock: Spinlock::init_lock("cons"),
-            uart: Uart::init(),
-            buf: [0; INPUT_BUF_SIZE],
-            r: 0,
-            w: 0,
-            e: 0,
-        }
+        Uart::init();
     }
 
     // send one character to the uart.
