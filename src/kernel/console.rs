@@ -1,4 +1,5 @@
 use core::fmt::{Error, Write};
+use crate::file::{CONSOLE, Devsw, DEVSW};
 use crate::spinlock::Spinlock;
 use crate::uart::Uart;
 
@@ -28,13 +29,11 @@ impl Console {
             e: 0,
         }
     }
-    pub fn init() {
+    pub fn init(self: &'static Self) {
 
-        // TODO: unimplemented
         // connect read and write system calls
         // to consoleread and consolewrite.
-        // devsw[CONSOLE].read = consoleread;
-        // devsw[CONSOLE].write = consolewrite;
+        unsafe { DEVSW[CONSOLE] = Some(self); }
 
         Uart::init();
     }
@@ -63,5 +62,15 @@ impl Write for Console {
         }
         // Return that we succeeded.
         Ok(())
+    }
+}
+
+impl Devsw for Console {
+    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize) {
+        todo!()
+    }
+
+    fn write(self: &Self, user_src: usize, src: usize, n: usize) {
+        todo!()
     }
 }

@@ -27,7 +27,7 @@ pub struct Printer {
 
 impl Printer {
     pub fn init() {
-        Console::init();
+        unsafe { PRINTER.console.init(); }
     }
 
     // Print to the console. only understands %d, %x, %p, %s.

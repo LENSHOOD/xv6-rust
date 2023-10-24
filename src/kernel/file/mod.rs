@@ -1,18 +1,38 @@
 use crate::fs::NDIRECT;
+use crate::param::NDEV;
 use crate::pipe::Pipe;
 use crate::sleeplock::Sleeplock;
 use crate::stat::FileType;
 
+pub mod file;
+
+#[derive(Copy, Clone)]
 enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
+#[derive(Copy, Clone)]
 struct File<'a> {
     file_type: FDType,
     ref_cnt: i32, // reference count
     readable: bool,
     writable: bool,
-    pipe: &'a Pipe, // FD_PIPE
-    ip: &'a INode, // FD_INODE and FD_DEVICE
+    pipe: Option<&'a Pipe>, // FD_PIPE
+    ip: Option<&'a INode>, // FD_INODE and FD_DEVICE
     off: u32, // FD_INODE
     major: i16, // FD_DEVICE
+}
+
+impl<'a> File<'a> {
+    pub const fn create() -> Self {
+        Self {
+            file_type: FDType::FD_NONE,
+            ref_cnt: 0,
+            readable: false,
+            writable: false,
+            pipe: None,
+            ip: None,
+            off: 0,
+            major: 0,
+        }
+    }
 }
 
 #[macro_export]
@@ -71,13 +91,12 @@ impl INode {
     }
 }
 
-// TODO
-// map major device number to device functions.
-// struct devsw {
-//     int (*read)(int, uint64, int);
-//     int (*write)(int, uint64, int);
-// };
-//
-// extern struct devsw devsw[];
+pub static mut DEVSW: [Option<&dyn Devsw>; NDEV] = [None; NDEV];
 
-const CONSOLE: usize = 1;
+// map major device number to device functions.
+pub trait Devsw {
+    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize);
+    fn write(self: &Self, user_addr: usize, addr: usize, sz: usize);
+}
+
+pub const CONSOLE: usize = 1;

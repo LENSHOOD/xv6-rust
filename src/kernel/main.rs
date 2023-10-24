@@ -117,7 +117,8 @@ pub extern "C" fn kmain() {
         debug_log!("Buffer cache initialized\n");
 
         fs::fs::iinit(); // inode table
-        debug_log!("INode table initialized\n");
+        file::file::fileinit(); // file table
+        debug_log!("ITable FTable initialized\n");
 
         printf!("\nSystem boot successful\n")
     }
