@@ -1,12 +1,7 @@
-[package]
+[workspace]
 name = "xv6-rust"
-version = "0.1.0"
-edition = "2021"
-
-[[bin]]
-name = "kernel"
-path = "src/kernel/main.rs"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+members = [
+    "kernel",
+    "user",
+    "mkfs",
+]
