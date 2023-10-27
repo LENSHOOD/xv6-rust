@@ -19,6 +19,9 @@ extern {
 fn kvmmake<'a>() -> &'a PageTable {
     let kpgtbl = unsafe {
         let pg: *mut PageTable = KMEM.kalloc();
+        if pg.is_null() {
+            panic!("failed to alloc for root page table");
+        }
         memset(pg as *mut u8, 0, PGSIZE);
         pg.as_mut().unwrap()
     };

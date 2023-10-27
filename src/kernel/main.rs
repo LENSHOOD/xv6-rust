@@ -22,11 +22,13 @@ mod string;
 mod vm;
 mod trap;
 mod plic;
+mod buf;
 mod bio;
 mod fs;
 mod file;
 mod pipe;
 mod stat;
+mod virtio;
 use core::alloc::{GlobalAlloc, Layout};
 use crate::kalloc::{KMEM, KMem};
 use crate::printf::Printer;
@@ -120,6 +122,9 @@ pub extern "C" fn kmain() {
         fs::fs::iinit(); // inode table
         file::file::fileinit(); // file table
         debug_log!("ITable FTable initialized\n");
+
+        virtio::virtio_disk::virtio_disk_init(); // emulated hard disk
+        debug_log!("VirtIO disk initialized\n");
 
         printf!("\nSystem boot successful\n")
     }

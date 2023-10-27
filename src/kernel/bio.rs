@@ -14,39 +14,11 @@
 //     so do not keep them longer than necessary.
 
 use core::ptr::NonNull;
+use crate::buf::Buf;
 use crate::fs::BSIZE;
 use crate::param::NBUF;
 use crate::sleeplock::Sleeplock;
 use crate::spinlock::Spinlock;
-
-#[derive(Copy, Clone)]
-struct Buf {
-    valid: bool,   // has data been read from disk?
-    disk: bool,    // does disk "own" buf?
-    dev: u32,
-    blockno: u32,
-    lock: Sleeplock,
-    refcnt: u32,
-    prev: Option<NonNull<Buf>>, // LRU cache list
-    next: Option<NonNull<Buf>>,
-    data: [u8; BSIZE],
-}
-
-impl Buf {
-    const fn new() -> Self {
-        Buf {
-            valid: false,
-            disk: false,
-            dev: 0,
-            blockno: 0,
-            lock: Sleeplock::init_lock("buffer"),
-            refcnt: 0,
-            prev: None,
-            next: None,
-            data: [0; BSIZE],
-        }
-    }
-}
 struct BCache {
     lock: Spinlock,
     buf: [Buf; NBUF],
