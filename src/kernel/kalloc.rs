@@ -20,26 +20,28 @@ pub struct KMem {
     freelist: *mut Run,
 }
 
-pub static mut KMEM: Option<KMem> = None;
+pub static mut KMEM: KMem = KMem::create();
 
 impl KMem {
-    pub fn kinit() -> Self {
-        let mut k_mem = Self {
+
+    const fn create() -> Self {
+        Self {
             lock: Spinlock::init_lock("kmem"),
             freelist: ptr::null_mut(),
-        };
+        }
+    }
+    pub fn kinit() {
         unsafe {
-            Self::freerange(&mut k_mem, (&mut end) as *mut u8, PHYSTOP as *mut u8);
+            Self::freerange(&mut KMEM, (&mut end) as *mut u8, PHYSTOP as *mut u8);
         }
 
         // printf!("finish init from {:x}, to {:x}", unsafe { (&end as *const u8).expose_addr() }, PHYSTOP);
-        k_mem
     }
 
-    fn freerange(self: &mut Self, pa_start: *mut u8, pa_end: *mut u8) {
+    fn freerange<T: Sized>(self: &mut Self, pa_start: *mut T, pa_end: *mut T) {
         let mut p = PGROUNDUP!(pa_start);
         while p + PGSIZE <= pa_end as usize {
-            self.kfree(p as *mut u8);
+            self.kfree(p as *mut T);
             p += PGSIZE;
         }
     }
@@ -48,7 +50,7 @@ impl KMem {
     /// which normally should have been returned by a
     /// call to kalloc().  (The exception is when
     /// initializing the allocator; see kinit above.)
-    pub fn kfree(self: &mut Self, pa: *mut u8)
+    fn kfree<T: Sized>(self: &mut Self, pa: *mut T)
     {
         unsafe {
             let pa_uszie = pa as usize;
@@ -58,7 +60,7 @@ impl KMem {
         }
 
         // Fill with junk to catch dangling refs.
-        memset(pa, 1, PGSIZE);
+        memset(pa as *mut u8, 1, PGSIZE);
 
         let r = pa as *mut Run;
 
@@ -73,7 +75,7 @@ impl KMem {
     /// Allocate one 4096-byte page of physical memory.
     /// Returns a pointer that the kernel can use.
     /// Returns 0 if the memory cannot be allocated.
-    pub fn kalloc(self: &mut Self) -> *mut u8 {
+    pub fn kalloc<T: Sized>(self: &mut Self) -> *mut T {
         self.lock.acquire();
         let r = self.freelist;
         if !r.is_null() {
@@ -86,6 +88,6 @@ impl KMem {
         if !r.is_null() {
             memset(r as *mut u8, 5, PGSIZE); // fill with junk
         }
-        r as *mut u8
+        r as *mut T
     }
 }

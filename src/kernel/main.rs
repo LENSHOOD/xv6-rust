@@ -83,7 +83,8 @@ pub extern "C" fn kmain() {
     if cpuid() == 0 {
         Printer::init();
         printf!("\nxv6 kernel is booting...\n\n");
-        unsafe { KMEM = Some(KMem::kinit()) } // physical page allocator
+
+        KMem::kinit(); // physical page allocator
         debug_log!("Kernel memory initialized.\n");
 
         // debug info

@@ -213,7 +213,7 @@ pub fn myproc<'a>() -> &'a Proc<'a> {
 pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
     for idx in 0..NPROC {
         unsafe {
-            let pa = KMEM.as_mut().unwrap().kalloc();
+            let pa: *mut u8 = KMEM.kalloc();
             if pa.is_null() {
                 panic!("kalloc");
             }

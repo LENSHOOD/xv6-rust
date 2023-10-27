@@ -18,9 +18,9 @@ extern {
 // Make a direct-map page table for the kernel.
 fn kvmmake<'a>() -> &'a PageTable {
     let kpgtbl = unsafe {
-        let pg = KMEM.as_mut().unwrap().kalloc();
-        memset(pg, 0, PGSIZE);
-        (pg as *mut PageTable).as_mut().unwrap()
+        let pg: *mut PageTable = KMEM.kalloc();
+        memset(pg as *mut u8, 0, PGSIZE);
+        pg.as_mut().unwrap()
     };
     // printf!("Root Page Table Allocated.\n");
 
@@ -140,16 +140,16 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
                     return None;
                 }
 
-                let next_level_pgtbl = KMEM.as_mut().unwrap().kalloc();
+                let next_level_pgtbl: *mut PageTable = KMEM.kalloc();
                 if next_level_pgtbl.is_null() {
                     return None;
                 }
 
-                memset(next_level_pgtbl, 0, PGSIZE);
+                memset(next_level_pgtbl as *mut u8, 0, PGSIZE);
 
                 *pte = Pte(PA2PTE!(next_level_pgtbl.expose_addr()) | PTE_V);
                 // printf!("[{}] pte: {:x}\n", PX!(level, va), pte.0);
-                curr_pgtbl = (next_level_pgtbl as *mut PageTable).as_mut().unwrap();
+                curr_pgtbl = next_level_pgtbl.as_mut().unwrap();
             }
         }
     }
