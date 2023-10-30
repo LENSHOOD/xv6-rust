@@ -1,37 +1,42 @@
 use std::fs::File;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::mem;
-use std::mem::size_of;
+use std::mem::{size_of, transmute};
 use std::ops::Index;
+use std::slice::from_raw_parts;
 use crate::deps::{BSIZE, DINode, Dirent, FSMAGIC, FSSIZE, IPB, LOGSIZE, ROOTINO, SuperBlock};
 use clap::{arg, Parser};
 use crate::deps::FileType::{T_DIR, T_FILE};
 
 mod deps;
-const NINODES:usize = 200;
+const NINODES: u32 = 200;
 
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
 
-const NBITMAP: usize = FSSIZE/(BSIZE * 8) + 1;
-const NINODEBLOCKS: usize = NINODES / IPB + 1;
-const NLOG: usize = LOGSIZE;
-static mut NMETA: usize = 0;    // Number of meta blocks (boot, sb, nlog, inode, bitmap)
-static mut NBLOCKS: usize = 0;  // Number of data blocks
+const NBITMAP: u32 = FSSIZE/(BSIZE * 8) + 1;
+const NINODEBLOCKS: u32 = NINODES / IPB + 1;
+const NLOG: u32 = LOGSIZE;
 
-static mut FSFD: usize = 0;
-static mut sb: SuperBlock = SuperBlock {
-    magic: 0,
-    size: 0,
-    nblocks: 0,
-    ninodes: 0,
-    nlog: 0,
-    logstart: 0,
-    inodestart: 0,
-    bmapstart: 0,
+// 1 fs block = 1 disk sector
+const NMETA: u32 = 2 + NLOG + NINODEBLOCKS + NBITMAP;    // Number of meta blocks (boot, sb, nlog, inode, bitmap)
+const NBLOCKS: u32 = FSSIZE - NMETA;  // Number of data blocks
+
+const sb: SuperBlock = SuperBlock {
+    magic: FSMAGIC,
+    size: xint(FSSIZE),
+    nblocks: xint(NBLOCKS),
+    ninodes: xint(NINODES),
+    nlog: xint(NLOG),
+    logstart: xint(2),
+    inodestart: xint(2+NLOG),
+    bmapstart: xint(2+NLOG+NINODEBLOCKS),
 };
-static mut ZEROES: [u8; BSIZE] = [0; BSIZE];
+const ZEROES: [u8; BSIZE] = [0; BSIZE];
 const FREEINODE: usize = 1;
-static mut FREEBLOCK: usize = 0;
+
+// the first free block that we can allocate
+const FREEBLOCK: u32 = NMETA;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -44,7 +49,6 @@ struct Args {
     files: Option<Vec<String>>,
 }
 fn main() {
-    let i: i32;
     let cc: i32;
     let fd: i32;
 
@@ -53,7 +57,6 @@ fn main() {
     let off: u32;
 
     let mut de: Dirent;
-    let buf: [u8; BSIZE];
     let mut din: DINode;
 
     assert_eq!(size_of::<u32>(), 4);
@@ -62,33 +65,25 @@ fn main() {
 
     let args: Args = Args::parse();
 
-    let img_file = File::options().read(true).write(true).create(true).truncate(true).open(args.output_name)?;
+    let mut img_file =
+        File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(args.output_name)?;
 
-    // 1 fs block = 1 disk sector
-    NMETA = 2 + NLOG + NINODEBLOCKS + NBITMAP;
-    NBLOCKS = FSSIZE - NMETA;
-
-    sb.magic = FSMAGIC;
-    sb.size = xint(FSSIZE);
-    sb.nblocks = xint(NBLOCKS);
-    sb.ninodes = xint(NINODES);
-    sb.nlog = xint(NLOG);
-    sb.logstart = xint(2);
-    sb.inodestart = xint(2+NLOG);
-    sb.bmapstart = xint(2+NLOG+NINODEBLOCKS);
-
-    println!("nmeta {} (boot, super, log blocks {} inode blocks {}, bitmap blocks {}) blocks %d total {}",
+    println!("nmeta {} (boot, super, log blocks {} inode blocks {}, bitmap blocks {}) blocks {} total {}",
            NMETA, NLOG, NINODEBLOCKS, NBITMAP, NBLOCKS, FSSIZE);
 
-    FREEBLOCK = NMETA;     // the first free block that we can allocate
-
     for i in 0..FSSIZE {
-        wsect(i, ZEROES);
+        wsect(&mut img_file, i, &ZEROES);
     }
 
-    memset(buf, 0, sizeof(buf));
-    memmove(buf, &sb, sizeof(sb));
-    wsect(1, buf);
+    let buf: [u8; BSIZE] = [0; BSIZE];
+    let x = unsafe { from_raw_parts(&sb as *const SuperBlock as *const u8, size_of::<SuperBlock>()) };
+    buf[x.len()..].clone_from_slice(x);
+    wsect(&mut img_file, 1, &buf);
 
     rootino = ialloc(T_DIR);
     assert_eq!(rootino, ROOTINO);
@@ -148,4 +143,52 @@ fn main() {
     winode(rootino, &din);
 
     balloc(FREEBLOCK);
+}
+
+// convert to riscv byte order
+const fn xshort(x: u16) -> u16 {
+    x.to_le()
+}
+
+const fn xint(x: u32) -> u32 {
+    x.to_le()
+}
+
+fn wsect(f: &mut File, sec: u32, buf: &[u8]) {
+    if f.seek(SeekFrom::Start((sec * BSIZE) as u64))? != (sec * BSIZE) as u64 {
+        panic!("lseek");
+    }
+    if f.write(buf)? != BSIZE {
+        panic!("write");
+    }
+}
+
+fn rsect(f: &mut File, sec: u32, buf: &mut [u8]) {
+    if f.seek(SeekFrom::Start((sec * BSIZE) as u64))? != (sec * BSIZE) as u64 {
+        panic!("lseek");
+    }
+    if f.read(buf)? != BSIZE {
+        panic!("read");
+    }
+}
+
+fn winode(f: &mut File, inum: u32, ip: DINode) {
+    let bn = IBLOCK!(inum, &sb);
+    let mut buf: [u8; BSIZE];
+    rsect(f, bn, &mut buf);
+
+    let x = unsafe { from_raw_parts(&ip as *const DINode as *const u8, size_of::<DINode>()) };
+    buf[x.len() * (inum % IPB)..(x.len() + 1) * (inum % IPB)].clone_from_slice(x);
+    wsect(f, bn, &buf);
+}
+
+fn rinode(f: &mut File, inum: u32, struct dinode *ip) {
+    struct dinode *dip;
+
+    let bn = IBLOCK!(inum, &sb);
+
+    let mut buf: [u8; BSIZE];
+    rsect(f, bn, &mut buf);
+    dip = ((struct dinode*)buf) + (inum % IPB);
+    *ip = *dip;
 }
