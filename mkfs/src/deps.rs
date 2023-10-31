@@ -18,6 +18,9 @@ pub const NDIRECT: usize = 12;
 
 pub const ROOTINO: usize = 1;
 
+pub const NINDIRECT:usize = BSIZE / mem::size_of::<u32>();
+pub const MAXFILE: usize = NDIRECT + NINDIRECT;
+
 #[derive(Copy, Clone)]
 pub enum FileType {
     NO_TYPE,
@@ -28,12 +31,12 @@ pub enum FileType {
 
 #[repr(C)]
 pub struct DINode {
-    file_type: FileType, // File type
-    major: i16, // Major device number (T_DEVICE only)
-    minor: i16, // Minor device number (T_DEVICE only)
-    nlink: i16, // Number of links to inode in file system
+    pub(crate) file_type: FileType, // File type
+    pub(crate) major: i16, // Major device number (T_DEVICE only)
+    pub(crate) minor: i16, // Minor device number (T_DEVICE only)
+    pub(crate) nlink: i16, // Number of links to inode in file system
     pub(crate) size: u32, // Size of file (bytes)
-    addrs: [u32; NDIRECT + 1], // Data block addresses
+    pub(crate) addrs: [u32; NDIRECT + 1], // Data block addresses
 }
 
 pub const FSMAGIC: u32 = 0x10203040;
@@ -49,12 +52,12 @@ pub struct SuperBlock {
     pub(crate) bmapstart: u32, // Block number of first free map block
 }
 
-const DIRSIZ: usize = 14;
+pub const DIRSIZ: usize = 14;
 
 #[repr(C)]
 pub struct Dirent {
     pub(crate) inum: u16,
-    name: [u8; DIRSIZ],
+    pub(crate) name: [u8; DIRSIZ],
 }
 
 #[macro_export]
