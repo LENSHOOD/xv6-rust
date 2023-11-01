@@ -12,13 +12,13 @@ pub const FSSIZE: u32 = 2000;  // size of file system in blocks
 
 pub const BSIZE: usize = 1024;  // block size
 
-pub const IPB: usize = BSIZE / mem::size_of::<DINode>();
+pub const IPB: u32 = (BSIZE / mem::size_of::<DINode>()) as u32;
 
 pub const NDIRECT: usize = 12;
 
-pub const ROOTINO: usize = 1;
+pub const ROOTINO: u32 = 1;
 
-pub const NINDIRECT:usize = BSIZE / mem::size_of::<u32>();
+pub const NINDIRECT: usize = BSIZE / mem::size_of::<u32>();
 pub const MAXFILE: usize = NDIRECT + NINDIRECT;
 
 #[derive(Copy, Clone)]
