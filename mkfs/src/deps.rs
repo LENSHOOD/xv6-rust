@@ -30,6 +30,7 @@ pub enum FileType {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct DINode {
     pub(crate) file_type: FileType, // File type
     pub(crate) major: i16, // Major device number (T_DEVICE only)
