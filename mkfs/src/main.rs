@@ -30,7 +30,7 @@ const SB: SuperBlock = SuperBlock {
     nlog: NLOG.to_le(),
     logstart: 2u32.to_le(),
     inodestart: (2+NLOG).to_le(),
-    bmapstart: 2+NLOG+NINODEBLOCKS.to_le(),
+    bmapstart: (2+NLOG+NINODEBLOCKS).to_le(),
 };
 const ZEROES: [u8; BSIZE] = [0; BSIZE];
 static FREEINODE: AtomicU32 = AtomicU32::new(1);
@@ -89,7 +89,7 @@ fn main() -> Result<()> {
 
     de.inum = (rootino as u16).to_le();
     let v = "..".as_bytes();
-    de.name[v.len()..].copy_from_slice(v);
+    de.name[..v.len()].copy_from_slice(v);
     iappend(&mut img_file, rootino, &de, size_of::<Dirent>() as i32)?;
 
     match args.files {
@@ -134,7 +134,7 @@ fn main() -> Result<()> {
 
     // fix size of root inode dir
     let mut din = rinode(&mut img_file, rootino);
-    let mut off = din.size.to_be();
+    let mut off = din.size.to_le();
     off = (((off as usize / BSIZE) + 1) * BSIZE) as u32;
     din.size = off.to_le();
     winode(&mut img_file,rootino, din)?;
@@ -225,7 +225,7 @@ fn iappend<T>(f: &mut File, inum: u32, xp: &T, n: i32) -> Result<()> {
     let xp = unsafe { from_raw_parts(xp as *const T as *const u8, size_of::<T>()) };
 
     let mut din = rinode(f, inum);
-    let mut off = din.size.to_be();
+    let mut off = din.size.to_le();
     // printf("append inum %d at off %d sz %d\n", inum, off, n);
     let mut n = n;
     let mut indirect: [u32; NINDIRECT] = [0; NINDIRECT];
@@ -235,22 +235,27 @@ fn iappend<T>(f: &mut File, inum: u32, xp: &T, n: i32) -> Result<()> {
         let fbn = off as usize / BSIZE;
         assert!(fbn < MAXFILE);
         let x = if fbn < NDIRECT {
-            if din.addrs[fbn].to_be() == 0 {
-                din.addrs[fbn] = FREEBLOCK.fetch_add(1, Ordering::Relaxed).to_le();
+            if din.addrs[fbn].to_le() == 0 {
+                let a = FREEBLOCK.fetch_add(1, Ordering::Relaxed);
+                let b = a.to_le();
+                din.addrs[fbn] = b;
             }
-            din.addrs[fbn].to_be()
+            let c = din.addrs[fbn];
+            let d = c.to_le();
+            d
+
         } else {
-            if din.addrs[NDIRECT].to_be() == 0 {
+            if din.addrs[NDIRECT].to_le() == 0 {
                 din.addrs[NDIRECT] = FREEBLOCK.fetch_add(1, Ordering::Relaxed).to_le();
             }
             let mut buf: [u8; NINDIRECT*4] = unsafe { std::mem::transmute(indirect) };
-            rsect(f, din.addrs[NDIRECT].to_be(), &mut buf)?;
+            rsect(f, din.addrs[NDIRECT].to_le(), &mut buf)?;
             if indirect[fbn - NDIRECT] == 0 {
                 indirect[fbn - NDIRECT] = FREEBLOCK.fetch_add(1, Ordering::Relaxed).to_le();
                 let mut buf: [u8; NINDIRECT*4] = unsafe { std::mem::transmute(indirect) };
-                wsect(f, din.addrs[NDIRECT].to_be(), &mut buf)?;
+                wsect(f, din.addrs[NDIRECT].to_le(), &mut buf)?;
             }
-            indirect[fbn - NDIRECT].to_be()
+            indirect[fbn - NDIRECT].to_le()
         };
 
         let n1 = cmp::min(n as usize, (fbn + 1) * BSIZE - off as usize);
