@@ -7,6 +7,7 @@
 
 use core::ptr;
 use crate::buf::Buf;
+use crate::debug_log;
 use crate::kalloc::KMEM;
 use crate::riscv::PGSIZE;
 use crate::spinlock::Spinlock;
@@ -16,7 +17,7 @@ use crate::virtio::*;
 macro_rules! Read_R {
     ( $r:expr ) => {
         unsafe {
-            (($crate::memlayout::VIRTIO0 + $r) as *const usize).read_volatile()
+            (($crate::memlayout::VIRTIO0 + $r) as *const usize).read_volatile() as u32
         }
     };
 }
@@ -24,7 +25,7 @@ macro_rules! Read_R {
 macro_rules! Write_R {
     ( $r:expr, $val:expr ) => {
         unsafe {
-            (($crate::memlayout::VIRTIO0 + $r) as *mut usize).write_volatile($val)
+            (($crate::memlayout::VIRTIO0 + $r) as *mut usize).write_volatile($val as usize)
         }
     };
 }
@@ -130,7 +131,7 @@ pub fn virtio_disk_init() {
     Write_R!(VIRTIO_MMIO_STATUS, status);
 
     // re-read status to ensure FEATURES_OK is set.
-    status = Read_R!(VIRTIO_MMIO_STATUS);
+    status = Read_R!(VIRTIO_MMIO_STATUS) as usize;
     if !(status & VIRTIO_CONFIG_S_FEATURES_OK) == 0 {
         panic!("virtio disk FEATURES_OK unset");
     }
@@ -148,7 +149,7 @@ pub fn virtio_disk_init() {
     if max == 0 {
         panic!("virtio disk has no queue 0");
     }
-    if max < NUM {
+    if (max as usize ) < NUM{
         panic!("virtio disk max queue too short");
     }
 

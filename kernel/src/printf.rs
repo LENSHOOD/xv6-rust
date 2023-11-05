@@ -49,6 +49,6 @@ impl Printer {
 macro_rules! debug_log {
 	($($arg:tt)*) => {
         #[cfg(log_level = "debug")]
-        printf!($($arg)*)
+        crate::printf!($($arg)*)
     };
 }
