@@ -83,7 +83,7 @@ pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: usi
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
 // allocate a needed page-table page.
-fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, perm: usize) -> i32 {
+pub fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, perm: usize) -> i32 {
     if size == 0 {
         panic!("mappages: size");
     }
@@ -172,4 +172,17 @@ pub fn kvminithart() {
 
     // flush stale entries from the TLB.
     sfence_vma();
+}
+
+// create an empty user page table.
+// returns 0 if out of memory.
+pub fn uvmcreate<'a>() -> Option<&'a mut PageTable>{
+    unsafe {
+        let pagetable: *mut PageTable = KMEM.kalloc();
+        if pagetable.is_null() {
+            return None;
+        }
+        memset(pagetable as *mut u8, 0, PGSIZE);
+        pagetable.as_mut()
+    }
 }

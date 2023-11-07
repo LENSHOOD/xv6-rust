@@ -50,7 +50,7 @@ impl KMem {
     /// which normally should have been returned by a
     /// call to kalloc().  (The exception is when
     /// initializing the allocator; see kinit above.)
-    fn kfree<T: Sized>(self: &mut Self, pa: *mut T)
+    pub fn kfree<T: Sized>(self: &mut Self, pa: *mut T)
     {
         unsafe {
             let pa_uszie = pa as usize;

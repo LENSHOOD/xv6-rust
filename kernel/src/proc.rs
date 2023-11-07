@@ -1,11 +1,14 @@
+use core::f32::consts::PI;
+use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
 use crate::kalloc::KMEM;
 use crate::KSTACK;
+use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC};
-use crate::proc::Procstate::UNUSED;
-use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, r_tp};
+use crate::proc::Procstate::{RUNNABLE, UNUSED, USED};
+use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
-use crate::vm::kvmmap;
+use crate::vm::{kvmmap, mappages, trampoline, uvmcreate};
 
 // Saved registers for kernel context switches.
 #[derive(Copy, Clone)]
@@ -53,6 +56,12 @@ impl<'a> Cpu<'a> {
 
 static mut CPUS: [Cpu; NCPU] = [Cpu::default(); NCPU];
 static mut PROCS: [Proc; NPROC] = [Proc::default(); NPROC];
+
+static mut INIT_PROC: Option<&mut Proc> = None;
+
+extern {
+    static trampoline: u8; // trampoline.S
+}
 
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
@@ -116,7 +125,7 @@ enum Procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }
 // Per-process state
 #[derive(Copy, Clone)]
 pub struct Proc<'a> {
-    lock: Option<Spinlock>,
+    lock: Spinlock,
 
     // p->lock must be held when using these:
     state: Procstate, // Process state
@@ -131,8 +140,8 @@ pub struct Proc<'a> {
     // these are private to the process, so p->lock need not be held.
     kstack: usize, // Virtual address of kernel stack
     sz: usize, // Size of process memory (bytes)
-    pagetable: Option<&'a PageTable>, // User page table
-    trapframe: Option<&'a Trapframe>, // data page for trampoline.S
+    pagetable: Option<&'a mut PageTable>, // User page table
+    trapframe: Option<&'a mut Trapframe>, // data page for trampoline.S
     context: Context, // swtch() here to run process
     ofile: Option<[&'a File<'a>; NOFILE]>, // Open files
     cwd: Option<&'a INode>,           // Current directory
@@ -142,14 +151,14 @@ pub struct Proc<'a> {
 impl<'a> Proc<'a> {
     const fn default() -> Self {
         Proc {
-            lock: None,
+            lock: Spinlock::init_lock("proc"),
             state: UNUSED,
             chan: None,
             killed: 0,
             xstate: 0,
             pid: 0,
             parent: None,
-            kstack: 0,
+            kstack: KSTACK!(i),
             sz: 0,
             pagetable: None,
             trapframe: None,
@@ -176,13 +185,12 @@ impl<'a> Proc<'a> {
     }
 }
 
-static NEXT_PID: u32 = 1;
-static mut PID_LOCK: Option<Spinlock> = None;
+static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
 // must be acquired before any p->lock.
-static mut WAIT_LOCK: Option<Spinlock> = None;
+static mut WAIT_LOCK: Spinlock = Spinlock::init_lock("wait_lock");
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -208,6 +216,10 @@ pub fn myproc<'a>() -> &'a Proc<'a> {
     p.unwrap()
 }
 
+fn allocpid() -> u32 {
+    NEXT_PID.fetch_add(1, Ordering::Relaxed)
+}
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -226,16 +238,128 @@ pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
 
 // initialize the proc table.
 pub fn procinit() {
-    unsafe {
-        PID_LOCK = Some(Spinlock::init_lock("nextpid"));
-        WAIT_LOCK = Some(Spinlock::init_lock("wait_lock"));
-
-        for i in 0..NPROC {
-            let p = &mut PROCS[i];
-            p.lock = Some(Spinlock::init_lock("proc"));
-            p.state = UNUSED;
-            p.kstack = KSTACK!(i)
-        }
-    }
+    // empty due to PID_LOCK, WAIT_LOCK and PROCS has already been initialized
 }
 
+// Set up first user process.
+fn userinit() {
+    let p = allocproc();
+    unsafe { INIT_PROC = p; }
+
+    let p = p.unwrap();
+    // allocate one user page and copy initcode's instructions
+    // and data into it.
+    uvmfirst(p.pagetable, initcode, sizeof(initcode));
+    p.sz = PGSIZE;
+
+    // prepare for the very first "return" from kernel to user.
+    p.trapframe.unwrap().epc = 0;      // user program counter
+    p.trapframe.unwrap().sp = PGSIZE as u64;  // user stack pointer
+
+    p.name = "initcode";
+    p.cwd = namei("/");
+
+    p.state = RUNNABLE;
+
+    p.lock.release();
+}
+
+// Look in the process table for an UNUSED proc.
+// If found, initialize state required to run in the kernel,
+// and return with p->lock held.
+// If there are no free procs, or a memory allocation fails, return 0.
+fn allocproc() -> Option<&'static mut Proc> {
+    let mut proc = None;
+    for i in 0..NPROC {
+        let p = unsafe { &mut PROCS[i] };
+        p.lock.acquire();
+
+        if p.state == UNUSED {
+            proc = Some(p);
+            break;
+        }
+
+        p.lock.release();
+    }?;
+
+    let p = proc?;
+    p.pid = allocpid();
+    p.state = USED;
+
+    // Allocate a trapframe page.
+    let trapframe_ptr = unsafe { KMEM.kalloc() };
+    if trapframe_ptr.is_null() {
+        freeproc(p);
+        &p.lock.release();
+        return None;
+    }
+    p.trapframe = Some(trapframe_ptr as &mut Trapframe);
+
+    // An empty user page table.
+    p.pagetable = proc_pagetable(p);
+    if p.pagetable.is_none() {
+        freeproc(p);
+        p.lock.release();
+        return None;
+    }
+
+    // Set up new context to start executing at forkret,
+    // which returns to user space.
+    p.context.ra = (uint64)forkret;
+    p.context.sp = (p.kstack + PGSIZE) as u64;
+
+    return p;
+}
+
+// free a proc structure and the data hanging from it,
+// including user pages.
+// p->lock must be held.
+fn freeproc(p: &mut Proc) {
+    if let Some(tf) = p.trapframe {
+        unsafe { KMEM.kfree(tf as *mut Trapframe) };
+    }
+    p.trapframe = None;
+
+    if let Some(pgtabl) = p.pagetable {
+        proc_freepagetable(p->pagetable, p->sz);
+    }
+    p.pagetable = None;
+
+    p.sz = 0;
+    p.pid = 0;
+    p.parent = None;
+    p.name = "";
+    p.chan = None;
+    p.killed = 0;
+    p.xstate = 0;
+    p.state = UNUSED;
+}
+
+// Create a user page table for a given process, with no user memory,
+// but with trampoline and trapframe pages.
+fn proc_pagetable<'a>(p: &Proc) -> Option<&'a mut PageTable> {
+    // An empty page table.
+    let pagetable = uvmcreate()?;
+
+
+    // map the trampoline code (for system call return)
+    // at the highest user virtual address.
+    // only the supervisor uses it, on the way
+    // to/from user space, so not PTE_U.
+    let trapoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
+    if mappages(pagetable, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X) != 0 {
+        uvmfree(pagetable, 0);
+        return None;
+    }
+
+    // map the trapframe page just below the trampoline page, for
+    // trampoline.S.
+    let trapframe_addr = (p.trapframe.unwrap() as *const Trapframe).expose_addr();
+    if mappages(pagetable, TRAPFRAME, trapframe_addr, PGSIZE, PTE_R | PTE_W) < 0 {
+        uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+        uvmfree(pagetable, 0);
+        return None;
+    }
+
+    return Some(pagetable);
+}
