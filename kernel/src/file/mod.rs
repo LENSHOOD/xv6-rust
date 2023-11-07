@@ -9,7 +9,7 @@ pub mod file;
 #[derive(Copy, Clone)]
 enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
 #[derive(Copy, Clone)]
-struct File<'a> {
+pub struct File<'a> {
     file_type: FDType,
     ref_cnt: i32, // reference count
     readable: bool,

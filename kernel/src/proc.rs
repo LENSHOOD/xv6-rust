@@ -1,6 +1,7 @@
+use crate::file::{File, INode};
 use crate::kalloc::KMEM;
 use crate::KSTACK;
-use crate::param::{NCPU, NPROC};
+use crate::param::{NCPU, NOFILE, NPROC};
 use crate::proc::Procstate::UNUSED;
 use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
@@ -133,10 +134,8 @@ pub struct Proc<'a> {
     pagetable: Option<&'a PageTable>, // User page table
     trapframe: Option<&'a Trapframe>, // data page for trampoline.S
     context: Context, // swtch() here to run process
-    // TODO: open file
-    // ofile: [&'own File; NOFILE], // Open files
-    // TODO: inode
-    // struct inode *cwd;           // Current directory
+    ofile: Option<[&'a File<'a>; NOFILE]>, // Open files
+    cwd: Option<&'a INode>,           // Current directory
     name: &'a str,               // Process name (debugging)
 }
 
@@ -170,6 +169,8 @@ impl<'a> Proc<'a> {
                 s10: 0,
                 s11: 0,
             },
+            ofile: None,
+            cwd: None,
             name: "",
         }
     }
