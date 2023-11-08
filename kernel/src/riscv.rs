@@ -379,7 +379,7 @@ macro_rules! PTE2PA {
 #[macro_export]
 macro_rules! PTE_FLAGS {
     ( $pte:expr ) => {
-        ($pte) as u64 & 0x3FF
+        ($pte) & 0x3FF
     };
 }
 

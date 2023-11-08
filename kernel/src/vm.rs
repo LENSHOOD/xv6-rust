@@ -1,9 +1,9 @@
 use crate::kalloc::KMEM;
-use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, printf, PTE2PA, PX};
+use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, printf, PTE2PA, PTE_FLAGS, PX};
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
 use crate::proc::proc_mapstacks;
-use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp};
-use crate::string::memset;
+use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_SIZE, PTE_U, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp};
+use crate::string::{memmove, memset};
 
 /*
  * the kernel's page table.
@@ -115,6 +115,37 @@ pub fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize
     return 0;
 }
 
+// Remove npages of mappings starting from va. va must be
+// page-aligned. The mappings must exist.
+// Optionally free the physical memory.
+pub fn uvmunmap(pagetable: &mut PageTable, va: usize, npages: usize, do_free: usize) {
+    if (va % PGSIZE) != 0 {
+        panic!("uvmunmap: not aligned");
+    }
+
+    for a in (va..npages * PGSIZE).step_by(PGSIZE) {
+        match walk(pagetable, a, 0) {
+            None => panic!("uvmunmap: walk"),
+            Some(pte) => {
+                if pte.0 & PTE_V == 1 {
+                    panic!("uvmunmap: not mapped");
+                }
+
+                if PTE_FLAGS!(pte) == PTE_V {
+                    panic!("uvmunmap: not a leaf");
+                }
+
+                if do_free {
+                    let pa = PTE2PA!(pte);
+                    unsafe { KMEM.kfree(pa as *mut PageTable); }
+                }
+                *pte = Pte(0);
+            }
+        }
+    }
+}
+
+
 // Return the address of the PTE in page table pagetable
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page-table pages.
@@ -185,4 +216,48 @@ pub fn uvmcreate<'a>() -> Option<&'a mut PageTable>{
         memset(pagetable as *mut u8, 0, PGSIZE);
         pagetable.as_mut()
     }
+}
+
+// Load the user initcode into address 0 of pagetable,
+// for the very first process.
+// sz must be less than a page.
+pub fn uvmfirst(pagetable: &mut PageTable, src: *const u8, sz: usize) {
+    if sz >= PGSIZE {
+        panic!("uvmfirst: more than a page");
+    }
+
+    let mem = unsafe { KMEM.kalloc() };
+    memset(mem, 0, PGSIZE);
+    mappages(pagetable, 0, mem.expose_addr(), PGSIZE, PTE_W | PTE_R | PTE_X | PTE_U);
+    memmove(mem, src, sz);
+}
+
+// Recursively free page-table pages.
+// All leaf mappings must already have been removed.
+fn freewalk(pagetable: &mut PageTable) {
+    // there are 2^9 = 512 PTEs in a page table.
+    for i in 0..PTE_SIZE {
+        let mut pte = &mut pagetable.0[i];
+        if pte & PTE_V == 0 {
+            panic!("freewalk: leaf");
+        }
+
+        if (pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0 {
+            // this PTE points to a lower-level page table.
+            let child_pgtbl = unsafe { (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap() };
+            freewalk(child_pgtbl);
+            *pte = Pte(0);
+        }
+    }
+
+    unsafe { KMEM.kfree(pagetable) };
+}
+
+// Free user memory pages,
+// then free page-table pages.
+pub fn uvmfree(pagetable: &mut PageTable, sz: usize) {
+    if sz > 0 {
+        uvmunmap(pagetable, 0, PGROUNDUP!(sz)/PGSIZE, 1);
+    }
+    freewalk(pagetable);
 }

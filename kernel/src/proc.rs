@@ -1,14 +1,17 @@
 use core::f32::consts::PI;
+use core::intrinsics::size_of;
+use core::mem;
 use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
+use crate::fs::fs;
 use crate::kalloc::KMEM;
 use crate::KSTACK;
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
-use crate::param::{NCPU, NOFILE, NPROC};
+use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, UNUSED, USED};
 use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
-use crate::vm::{kvmmap, mappages, trampoline, uvmcreate};
+use crate::vm::{kvmmap, mappages, trampoline, uvmcreate, uvmfirst, uvmfree, uvmunmap};
 
 // Saved registers for kernel context switches.
 #[derive(Copy, Clone)]
@@ -241,6 +244,19 @@ pub fn procinit() {
     // empty due to PID_LOCK, WAIT_LOCK and PROCS has already been initialized
 }
 
+// a user program that calls exec("/init")
+// assembled from ../user/initcode.S
+// od -t xC ../user/initcode
+const initcode: [u8; 52] = [
+    0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02,
+    0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x35, 0x02,
+    0x93, 0x08, 0x70, 0x00, 0x73, 0x00, 0x00, 0x00,
+    0x93, 0x08, 0x20, 0x00, 0x73, 0x00, 0x00, 0x00,
+    0xef, 0xf0, 0x9f, 0xff, 0x2f, 0x69, 0x6e, 0x69,
+    0x74, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00
+];
+
 // Set up first user process.
 fn userinit() {
     let p = allocproc();
@@ -249,7 +265,7 @@ fn userinit() {
     let p = p.unwrap();
     // allocate one user page and copy initcode's instructions
     // and data into it.
-    uvmfirst(p.pagetable, initcode, sizeof(initcode));
+    uvmfirst(p.pagetable.unwrap(), &initcode as *const u8, mem::size_of_val(&initcode));
     p.sz = PGSIZE;
 
     // prepare for the very first "return" from kernel to user.
@@ -257,11 +273,33 @@ fn userinit() {
     p.trapframe.unwrap().sp = PGSIZE as u64;  // user stack pointer
 
     p.name = "initcode";
-    p.cwd = namei("/");
+    // TODO
+    // p.cwd = namei("/");
 
     p.state = RUNNABLE;
 
     p.lock.release();
+}
+
+// A fork child's very first scheduling by scheduler()
+// will swtch to forkret.
+fn forkret() {
+
+    // Still holding p->lock from scheduler.
+    &myproc().lock.release();
+
+    let mut first = 1;
+    if first {
+    // File system initialization must be run in the context of a
+    // regular process (e.g., because it calls sleep), and thus cannot
+    // be run from main().
+        first = 0;
+        // TODO
+        // fs::fsinit(ROOTDEV);
+    }
+
+    // TODO
+    // usertrapret();
 }
 
 // Look in the process table for an UNUSED proc.
@@ -305,10 +343,10 @@ fn allocproc() -> Option<&'static mut Proc> {
 
     // Set up new context to start executing at forkret,
     // which returns to user space.
-    p.context.ra = (uint64)forkret;
+    p.context.ra = forkret as u64;
     p.context.sp = (p.kstack + PGSIZE) as u64;
 
-    return p;
+    return Some(p);
 }
 
 // free a proc structure and the data hanging from it,
@@ -321,7 +359,7 @@ fn freeproc(p: &mut Proc) {
     p.trapframe = None;
 
     if let Some(pgtabl) = p.pagetable {
-        proc_freepagetable(p->pagetable, p->sz);
+        proc_freepagetable(p.pagetable.unwrap(), p.sz);
     }
     p.pagetable = None;
 
@@ -362,4 +400,12 @@ fn proc_pagetable<'a>(p: &Proc) -> Option<&'a mut PageTable> {
     }
 
     return Some(pagetable);
+}
+
+// Free a process's page table, and free the
+// physical memory it refers to.
+fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmfree(pagetable, sz);
 }
