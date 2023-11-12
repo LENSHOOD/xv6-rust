@@ -11,6 +11,7 @@ use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, UNUSED, USED};
 use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
+use crate::trap::usertrapret;
 use crate::vm::{kvmmap, mappages, trampoline, uvmcreate, uvmfirst, uvmfree, uvmunmap};
 
 // Saved registers for kernel context switches.
@@ -79,15 +80,15 @@ extern {
 // return-to-user path via usertrapret() doesn't return through
 // the entire kernel call stack.
 struct Trapframe {
-    /*   0 */ kernel_satp: u64,
+    /*   0 */ pub(crate) kernel_satp: u64,
     // kernel page table
-    /*   8 */ kernel_sp: u64,
+    /*   8 */ pub(crate) kernel_sp: u64,
     // top of process's kernel stack
-    /*  16 */ kernel_trap: u64,
+    /*  16 */ pub(crate) kernel_trap: u64,
     // usertrap()
-    /*  24 */ epc: u64,
+    /*  24 */ pub(crate) epc: u64,
     // saved user program counter
-    /*  32 */ kernel_hartid: u64,
+    /*  32 */ pub(crate) kernel_hartid: u64,
     // saved kernel tp
     /*  40 */ ra: u64,
     /*  48 */ sp: u64,
@@ -141,10 +142,10 @@ pub struct Proc<'a> {
     parent: Option<&'a Proc<'a>>,         // Parent process
 
     // these are private to the process, so p->lock need not be held.
-    kstack: usize, // Virtual address of kernel stack
+    pub(crate) kstack: usize, // Virtual address of kernel stack
     sz: usize, // Size of process memory (bytes)
     pagetable: Option<&'a mut PageTable>, // User page table
-    trapframe: Option<&'a mut Trapframe>, // data page for trampoline.S
+    pub(crate) trapframe: Option<&'a mut Trapframe>, // data page for trampoline.S
     context: Context, // swtch() here to run process
     ofile: Option<[&'a File<'a>; NOFILE]>, // Open files
     cwd: Option<&'a INode>,           // Current directory
@@ -247,7 +248,7 @@ pub fn procinit() {
 // a user program that calls exec("/init")
 // assembled from ../user/initcode.S
 // od -t xC ../user/initcode
-const initcode: [u8; 52] = [
+const INIT_CODE: [u8; 52] = [
     0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02,
     0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x35, 0x02,
     0x93, 0x08, 0x70, 0x00, 0x73, 0x00, 0x00, 0x00,
@@ -265,7 +266,7 @@ fn userinit() {
     let p = p.unwrap();
     // allocate one user page and copy initcode's instructions
     // and data into it.
-    uvmfirst(p.pagetable.unwrap(), &initcode as *const u8, mem::size_of_val(&initcode));
+    uvmfirst(p.pagetable.unwrap(), &INIT_CODE as *const u8, mem::size_of_val(&INIT_CODE));
     p.sz = PGSIZE;
 
     // prepare for the very first "return" from kernel to user.
@@ -298,8 +299,7 @@ fn forkret() {
         // fs::fsinit(ROOTDEV);
     }
 
-    // TODO
-    // usertrapret();
+    usertrapret();
 }
 
 // Look in the process table for an UNUSED proc.
