@@ -4,15 +4,15 @@ use crate::sleeplock::Sleeplock;
 
 #[derive(Copy, Clone)]
 pub struct Buf {
-    valid: bool,   // has data been read from disk?
-    disk: bool,    // does disk "own" buf?
-    dev: u32,
-    blockno: u32,
-    lock: Sleeplock,
-    refcnt: u32,
+    pub(crate) valid: bool,   // has data been read from disk?
+    pub(crate) disk: bool,    // does disk "own" buf?
+    pub(crate) dev: u32,
+    pub(crate) blockno: u32,
+    pub(crate) lock: Sleeplock,
+    pub(crate) refcnt: u32,
     pub(crate) prev: Option<NonNull<Buf>>, // LRU cache list
     pub(crate) next: Option<NonNull<Buf>>,
-    data: [u8; BSIZE],
+    pub(crate) data: [u8; BSIZE],
 }
 
 impl Buf {

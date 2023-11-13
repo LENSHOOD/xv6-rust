@@ -19,6 +19,8 @@ use crate::fs::BSIZE;
 use crate::param::NBUF;
 use crate::sleeplock::Sleeplock;
 use crate::spinlock::Spinlock;
+use crate::virtio::virtio_disk::virtio_disk_rw;
+
 struct BCache {
     lock: Spinlock,
     buf: [Buf; NBUF],
@@ -56,7 +58,7 @@ pub fn binit() {
         // (we only have 4096-bytes kernel stack per CPU, see entry.S)
 
         // Create linked list of buffers
-        let mut head_ptr = *(BCACHE.head).as_ptr();
+        let mut head_ptr = *BCACHE.head.as_ptr();
         head_ptr.prev = Some(BCACHE.head);
         head_ptr.next = Some(BCACHE.head);
         for i in 0..NBUF {
@@ -68,5 +70,120 @@ pub fn binit() {
             (*head_next.as_ptr()).prev = NonNull::new(b as *mut Buf);
             head_ptr.next = NonNull::new(b as *mut Buf);
         }
+    }
+}
+
+
+// Look through buffer cache for block on device dev.
+// If not found, allocate a buffer.
+// In either case, return locked buffer.
+fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
+    unsafe {
+        BCACHE.lock.acquire();
+
+        // Is the block already cached?
+        loop {
+            let head = (*BCACHE.head.as_ptr());
+            let mut b = *head.next.unwrap().as_ptr();
+            if b == head {
+                break;
+            }
+
+            if b.dev == dev && b.blockno == blockno {
+                b.refcnt += 1;
+                BCACHE.lock.release();
+                b.lock.acquire_sleep();
+                return &mut b;
+            }
+
+            b = *b.next.unwrap().as_ptr();
+        }
+
+        // Not cached.
+        // Recycle the least recently used (LRU) unused buffer.
+        loop {
+            let head = (*BCACHE.head.as_ptr());
+            let mut b = *head.prev.unwrap().as_ptr();
+            if b == head {
+                break;
+            }
+
+            if b.refcnt == 0 {
+                b.dev = dev;
+                b.blockno = blockno;
+                b.valid = false;
+                b.refcnt = 1;
+                BCACHE.lock.release();
+                b.lock.acquire_sleep();
+                return &mut b;
+            }
+
+            b = *b.prev.unwrap().as_ptr();
+        }
+    }
+
+    panic!("bget: no buffers");
+}
+
+// Return a locked buf with the contents of the indicated block.
+fn bread(dev: u32, blockno: u32) -> &'static Buf {
+    let b = bget(dev, blockno);
+    if !b.valid {
+        virtio_disk_rw(b, false);
+        b.valid = true
+    }
+
+    return b;
+}
+
+// Write b's contents to disk.  Must be locked.
+fn bwrite(b: &Buf) {
+    if !b.lock.holding_sleep() {
+        panic!("bwrite");
+    }
+    virtio_disk_rw(b, true);
+}
+
+// Release a locked buffer.
+// Move to the head of the most-recently-used list.
+fn brelse(b: &mut Buf) {
+    if !b.lock.holding_sleep() {
+        panic!("brelse");
+    }
+
+    b.lock.release_sleep();
+    unsafe {
+        BCACHE.lock.acquire();
+        b.refcnt -= 1;
+        if b.refcnt == 0 {
+            (*b.next.unwrap().as_ptr()).prev = b.prev;
+            (*b.prev.unwrap().as_ptr()).next = b.next;
+
+            let mut head = *BCACHE.head.as_ptr();
+            b.next = head.next;
+            b.prev = Some(BCACHE.head);
+
+            let b = NonNull::new_unchecked(b as *mut Buf);
+            (*head.next.unwrap().as_ptr()).prev = Some(b);
+            head.next = Some(b);
+        }
+
+        BCACHE.lock.release();
+    }
+}
+
+fn bpin(b: &mut Buf) {
+    unsafe {
+        BCACHE.lock.acquire();
+        b.refcnt += 1;
+        BCACHE.lock.release()
+    }
+}
+
+fn bunpin(b: &mut Buf) {
+    unsafe {
+        BCACHE.lock.acquire();
+        b.refcnt -= 1;
+        BCACHE.lock.release()
     }
 }

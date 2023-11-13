@@ -191,3 +191,7 @@ pub fn virtio_disk_init() {
 
     // plic.c and trap.c arrange for interrupts from VIRTIO0_IRQ.
 }
+
+pub fn virtio_disk_rw(b: &Buf, write: bool) {
+    panic!("unsupported")
+}
