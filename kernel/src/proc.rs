@@ -4,6 +4,7 @@ use core::mem;
 use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
 use crate::fs::fs;
+use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
 use crate::KSTACK;
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
@@ -274,8 +275,7 @@ fn userinit() {
     p.trapframe.unwrap().sp = PGSIZE as u64;  // user stack pointer
 
     p.name = "initcode";
-    // TODO
-    // p.cwd = namei("/");
+    p.cwd = namei("/");
 
     p.state = RUNNABLE;
 
@@ -295,8 +295,7 @@ fn forkret() {
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
         first = 0;
-        // TODO
-        // fs::fsinit(ROOTDEV);
+        fs::fsinit(ROOTDEV);
     }
 
     usertrapret();

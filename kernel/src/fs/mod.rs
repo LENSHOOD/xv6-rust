@@ -15,7 +15,7 @@ pub const BSIZE: usize = 1024;  // block size
 //
 // mkfs computes the super block and builds an initial file system. The
 // super block describes the disk layout:
-struct SuperBlock {
+pub struct SuperBlock {
     magic: u32, // Must be FSMAGIC
     size: u32, // Size of file system image (blocks)
     nblocks: u32, // Number of data blocks
@@ -26,10 +26,10 @@ struct SuperBlock {
     bmapstart: u32, // Block number of first free map block
 }
 
-const FSMAGIC:usize = 0x10203040;
-pub const NDIRECT:usize = 12;
-const NINDIRECT:usize = BSIZE / mem::size_of::<u32>(); // BSIZE / sizeof(uint)
-const MAXFILE:usize = NDIRECT + NINDIRECT;
+const FSMAGIC: u32 = 0x10203040;
+pub const NDIRECT: usize = 12;
+const NINDIRECT: usize = BSIZE / mem::size_of::<u32>(); // BSIZE / sizeof(uint)
+const MAXFILE: usize = NDIRECT + NINDIRECT;
 
 // On-disk inode structure
 struct DINode {

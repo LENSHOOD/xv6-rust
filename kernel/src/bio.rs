@@ -126,7 +126,7 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
 }
 
 // Return a locked buf with the contents of the indicated block.
-fn bread(dev: u32, blockno: u32) -> &'static Buf {
+pub fn bread(dev: u32, blockno: u32) -> &'static mut Buf {
     let b = bget(dev, blockno);
     if !b.valid {
         virtio_disk_rw(b, false);
@@ -146,7 +146,7 @@ fn bwrite(b: &Buf) {
 
 // Release a locked buffer.
 // Move to the head of the most-recently-used list.
-fn brelse(b: &mut Buf) {
+pub fn brelse(b: &mut Buf) {
     if !b.lock.holding_sleep() {
         panic!("brelse");
     }

@@ -7,7 +7,6 @@
 
 use core::ptr;
 use crate::buf::Buf;
-use crate::debug_log;
 use crate::kalloc::KMEM;
 use crate::riscv::PGSIZE;
 use crate::spinlock::Spinlock;

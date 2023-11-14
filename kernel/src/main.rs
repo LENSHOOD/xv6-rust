@@ -29,6 +29,9 @@ mod file;
 mod pipe;
 mod stat;
 mod virtio;
+
+mod log;
+
 use core::alloc::{GlobalAlloc, Layout};
 use crate::kalloc::{KMEM, KMem};
 use crate::printf::Printer;

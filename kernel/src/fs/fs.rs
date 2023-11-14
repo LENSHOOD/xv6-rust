@@ -67,9 +67,15 @@
 // dev, and inum.  One must hold ip->lock in order to
 // read or write that inode's ip->valid, ip->size, ip->type, &c.
 
+use core::mem::size_of_val;
+use crate::bio::{bread, brelse};
+use crate::buf::Buf;
 use crate::file::INode;
+use crate::fs::{FSMAGIC, SuperBlock};
+use crate::log::initlog;
 use crate::param::NINODE;
 use crate::spinlock::Spinlock;
+use crate::string::memmove;
 
 struct ITable {
     lock: Spinlock,
@@ -83,4 +89,41 @@ static mut ITABLE: ITable = ITable {
 
 pub fn iinit() {
     // empty due to ITABLE has already been initialized
+}
+
+static mut SB: SuperBlock = SuperBlock {
+    magic: 0,
+    size: 0,
+    nblocks: 0,
+    ninodes: 0,
+    nlog: 0,
+    logstart: 0,
+    inodestart: 0,
+    bmapstart: 0,
+};
+
+impl SuperBlock {
+    fn readsb(self: &Self, dev: u32) {
+        let bp = bread(dev, 1);
+
+        let sz = size_of_val(self);
+        let raw = unsafe { core::slice::from_raw_parts(&self as *const SuperBlock as *const u8, sz) };
+        bp.data[..sz].clone_from_slice(raw);
+        brelse(bp);
+    }
+}
+
+// Init fs
+pub fn fsinit(dev: u32) {
+    unsafe {
+        SB.readsb(dev);
+        if SB.magic != FSMAGIC {
+            panic!("invalid file system");
+        }
+        initlog(dev, &SB);
+    }
+}
+
+pub fn namei<'a>(path: &str) -> Option<&'a INode> {
+    panic!("unsupported")
 }
