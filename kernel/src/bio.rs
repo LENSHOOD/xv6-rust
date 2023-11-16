@@ -83,17 +83,19 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
 
         // Is the block already cached?
         loop {
-            let head = (*BCACHE.head.as_ptr());
-            let mut b = *head.next.unwrap().as_ptr();
-            if b == head {
+            let head_ptr = BCACHE.head.as_ptr();
+            let head = *head_ptr;
+            let mut b_ptr = head.next.unwrap().as_ptr();
+            if b_ptr == head_ptr {
                 break;
             }
 
+            let mut b = *b_ptr;
             if b.dev == dev && b.blockno == blockno {
                 b.refcnt += 1;
                 BCACHE.lock.release();
                 b.lock.acquire_sleep();
-                return &mut b;
+                return &mut *head.next.unwrap().as_ptr();
             }
 
             b = *b.next.unwrap().as_ptr();
@@ -102,12 +104,14 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
         // Not cached.
         // Recycle the least recently used (LRU) unused buffer.
         loop {
-            let head = (*BCACHE.head.as_ptr());
-            let mut b = *head.prev.unwrap().as_ptr();
-            if b == head {
+            let head_ptr = BCACHE.head.as_ptr();
+            let head = *head_ptr;
+            let mut b_ptr = head.prev.unwrap().as_ptr();
+            if b_ptr == head_ptr {
                 break;
             }
 
+            let mut b = *b_ptr;
             if b.refcnt == 0 {
                 b.dev = dev;
                 b.blockno = blockno;
@@ -115,7 +119,7 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
                 b.refcnt = 1;
                 BCACHE.lock.release();
                 b.lock.acquire_sleep();
-                return &mut b;
+                return &mut *head.prev.unwrap().as_ptr();
             }
 
             b = *b.prev.unwrap().as_ptr();
@@ -137,7 +141,7 @@ pub fn bread(dev: u32, blockno: u32) -> &'static mut Buf {
 }
 
 // Write b's contents to disk.  Must be locked.
-fn bwrite(b: &Buf) {
+fn bwrite(b: &mut Buf) {
     if !b.lock.holding_sleep() {
         panic!("bwrite");
     }

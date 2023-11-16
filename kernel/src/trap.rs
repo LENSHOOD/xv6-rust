@@ -1,7 +1,7 @@
 use crate::MAKE_SATP;
 use crate::memlayout::TRAMPOLINE;
 use crate::proc::myproc;
-use crate::riscv::{intr_off, PGSIZE, r_satp, r_sstatus, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sstatus, w_stvec};
+use crate::riscv::{intr_off, PageTable, PGSIZE, r_satp, r_sstatus, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sstatus, w_stvec};
 use crate::spinlock::Spinlock;
 
 
@@ -47,12 +47,14 @@ pub fn usertrapret() {
     intr_off();
 
     // send syscalls, interrupts, and exceptions to uservec in trampoline.S
-    let trampoline_uservec = TRAMPOLINE + unsafe { uservec - trampoline };
+    let uservec_addr = (unsafe { &uservec } as *const u8).expose_addr();
+    let trampoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
+    let trampoline_uservec = TRAMPOLINE + uservec_addr - trampoline_addr;
     w_stvec(trampoline_uservec);
 
     // set up trapframe values that uservec will need when
     // the process next traps into the kernel.
-    let trapframe = p.trapframe.unwrap();
+    let trapframe = p.trapframe.as_mut().unwrap();
     trapframe.kernel_satp = r_satp() as u64;         // kernel page table
     trapframe.kernel_sp = (p.kstack + PGSIZE) as u64; // process's kernel stack
     trapframe.kernel_trap = usertrap as u64;
@@ -71,12 +73,16 @@ pub fn usertrapret() {
     w_sepc(trapframe.epc as usize);
 
     // tell trampoline.S the user page table to switch to.
-    let satp = MAKE_SATP!(p.pagetable.unwrap());
+    let satp = MAKE_SATP!((*p.pagetable.as_ref().unwrap() as *const PageTable).expose_addr());
 
     // jump to userret in trampoline.S at the top of memory, which
     // switches to the user page table, restores user registers,
     // and switches to user mode with sret.
-    let trampoline_userret = TRAMPOLINE + unsafe { userret - trampoline };
+    let userret_addr = (unsafe { &userret } as *const u8).expose_addr();
+    let trampoline_userret = TRAMPOLINE + userret_addr - trampoline_addr;
 
-    (trampoline_userret as *const fn(stap: usize))(satp);
+    unsafe {
+        let func = *(trampoline_userret as *const fn(stap: usize));
+        func(satp);
+    };
 }

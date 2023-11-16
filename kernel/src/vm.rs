@@ -118,7 +118,7 @@ pub fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
-pub fn uvmunmap(pagetable: &mut PageTable, va: usize, npages: usize, do_free: usize) {
+pub fn uvmunmap(pagetable: &mut PageTable, va: usize, npages: usize, do_free: bool) {
     if (va % PGSIZE) != 0 {
         panic!("uvmunmap: not aligned");
     }
@@ -131,12 +131,12 @@ pub fn uvmunmap(pagetable: &mut PageTable, va: usize, npages: usize, do_free: us
                     panic!("uvmunmap: not mapped");
                 }
 
-                if PTE_FLAGS!(pte) == PTE_V {
+                if PTE_FLAGS!(pte.0) == PTE_V {
                     panic!("uvmunmap: not a leaf");
                 }
 
                 if do_free {
-                    let pa = PTE2PA!(pte);
+                    let pa = PTE2PA!(pte.0);
                     unsafe { KMEM.kfree(pa as *mut PageTable); }
                 }
                 *pte = Pte(0);
@@ -238,11 +238,11 @@ fn freewalk(pagetable: &mut PageTable) {
     // there are 2^9 = 512 PTEs in a page table.
     for i in 0..PTE_SIZE {
         let mut pte = &mut pagetable.0[i];
-        if pte & PTE_V == 0 {
+        if pte.0 & PTE_V == 0 {
             panic!("freewalk: leaf");
         }
 
-        if (pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0 {
+        if (pte.0 & PTE_V) ==0 && pte.0 & (PTE_R|PTE_W|PTE_X) == 0 {
             // this PTE points to a lower-level page table.
             let child_pgtbl = unsafe { (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap() };
             freewalk(child_pgtbl);
@@ -257,7 +257,7 @@ fn freewalk(pagetable: &mut PageTable) {
 // then free page-table pages.
 pub fn uvmfree(pagetable: &mut PageTable, sz: usize) {
     if sz > 0 {
-        uvmunmap(pagetable, 0, PGROUNDUP!(sz)/PGSIZE, 1);
+        uvmunmap(pagetable, 0, PGROUNDUP!(sz)/PGSIZE, true);
     }
     freewalk(pagetable);
 }

@@ -107,7 +107,7 @@ impl SuperBlock {
         let bp = bread(dev, 1);
 
         let sz = size_of_val(self);
-        let raw = unsafe { core::slice::from_raw_parts(&self as *const SuperBlock as *const u8, sz) };
+        let raw = unsafe { core::slice::from_raw_parts(self as *const SuperBlock as *const u8, sz) };
         bp.data[..sz].clone_from_slice(raw);
         brelse(bp);
     }
