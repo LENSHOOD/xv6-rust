@@ -89,9 +89,7 @@ impl<'a> Disk<'a> {
         }
     }
 }
-
 static mut DISK: Disk = Disk::create();
-
 pub fn virtio_disk_init() {
     if Read_R!(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976 ||
         Read_R!(VIRTIO_MMIO_VERSION) != 2 ||
@@ -181,7 +179,7 @@ pub fn virtio_disk_init() {
 
     // all NUM descriptors start out unused.
     for i in 0..NUM {
-        unsafe { DISK.free[i] = 1; }
+        unsafe { (&mut DISK).free[i] = 1; }
     }
 
     // tell device we're completely ready.

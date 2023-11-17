@@ -236,8 +236,7 @@ pub fn uvmfirst(pagetable: &mut PageTable, src: *const u8, sz: usize) {
 // All leaf mappings must already have been removed.
 fn freewalk(pagetable: &mut PageTable) {
     // there are 2^9 = 512 PTEs in a page table.
-    for i in 0..PTE_SIZE {
-        let mut pte = &mut pagetable.0[i];
+    for pte in &mut pagetable.0 {
         if pte.0 & PTE_V == 0 {
             panic!("freewalk: leaf");
         }

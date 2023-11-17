@@ -1,4 +1,4 @@
-use core::mem;
+use core::{array, mem};
 use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
 use crate::fs::fs;
@@ -239,10 +239,10 @@ pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
 
 // initialize the proc table.
 pub fn procinit() {
-    let procs: [Proc; NPROC] = core::array::from_fn(|i| Proc::default(i));
+    let procs: [Proc; NPROC] = array::from_fn(|i| Proc::default(i));
     unsafe { PROCS = Some(procs) };
 
-    let cpus: [Cpu; NCPU] =  core::array::from_fn(|_| Cpu::default());
+    let cpus: [Cpu; NCPU] =  array::from_fn(|_| Cpu::default());
     unsafe { CPUS = Some(cpus) };
 }
 
@@ -307,8 +307,7 @@ fn forkret() {
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
 fn allocproc() -> Option<&'static mut Proc<'static>> {
-    for i in 0..NPROC {
-        let p = unsafe { &mut PROCS.as_mut().unwrap()[i] };
+    for p in unsafe { PROCS.as_mut().unwrap() } {
         p.lock.acquire();
 
         if p.state == UNUSED {
@@ -332,7 +331,7 @@ fn inner_alloc<'a>(p: &'a mut Proc<'a>) -> Option<&'a mut Proc<'a>> {
         &p.lock.release();
         return None;
     }
-    p.trapframe = Some(unsafe { &mut *trapframe_ptr });
+    p.trapframe = unsafe { trapframe_ptr.as_mut() };
 
     // An empty user page table.
     p.pagetable = proc_pagetable(p);
@@ -384,8 +383,8 @@ fn proc_pagetable<'a>(p: &Proc) -> Option<&'a mut PageTable> {
     // at the highest user virtual address.
     // only the supervisor uses it, on the way
     // to/from user space, so not PTE_U.
-    let trapoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
-    if mappages(pagetable, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X) != 0 {
+    let trampoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
+    if mappages(pagetable, TRAMPOLINE, trampoline_addr, PGSIZE, PTE_R | PTE_X) != 0 {
         uvmfree(pagetable, 0);
         return None;
     }

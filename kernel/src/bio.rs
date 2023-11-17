@@ -61,8 +61,7 @@ pub fn binit() {
         let mut head_ptr = *BCACHE.head.as_ptr();
         head_ptr.prev = Some(BCACHE.head);
         head_ptr.next = Some(BCACHE.head);
-        for i in 0..NBUF {
-            let mut b = &mut BCACHE.buf[i];
+        for b in &mut BCACHE.buf {
             b.next = head_ptr.next;
             b.prev = Some(BCACHE.head);
 
