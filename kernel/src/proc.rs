@@ -1,4 +1,5 @@
 use core::{array, mem};
+use core::cell::RefCell;
 use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
 use crate::fs::fs;
@@ -35,8 +36,9 @@ struct Context {
 }
 
 // Per-CPU state.
+#[derive(Copy, Clone)]
 pub struct Cpu<'a> {
-    proc: Option<&'a mut Proc<'a>>,
+    proc: Option<&'a RefCell<Proc<'a>>>,
     // The process running on this cpu, or null.
     context: Option<Context>,
     // swtch() here to enter scheduler().
@@ -56,7 +58,7 @@ impl<'a> Cpu<'a> {
     }
 }
 
-static mut CPUS: Option<[Cpu; NCPU]> = None;
+static mut CPUS: [Cpu; NCPU] = [Cpu::default(); NCPU];
 static mut PROCS: Option<[Proc; NPROC]> = None;
 
 static mut INIT_PROC: Option<&mut Proc> = None;
@@ -204,17 +206,16 @@ pub fn cpuid() -> usize {
 // Return this CPU's cpu struct.
 // Interrupts must be disabled.
 pub fn mycpu() -> &'static mut Cpu<'static> {
-    let mut cpus = unsafe { CPUS.as_mut().unwrap() };
-    &mut cpus[cpuid()]
+    unsafe { &mut CPUS[cpuid()] }
 }
 
 // Return the current struct proc *, or zero if none.
-pub fn myproc() -> &'static mut Proc<'static> {
+pub fn myproc() -> &'static RefCell<Proc<'static>> {
     push_off();
     let c = mycpu();
-    let p = &mut c.proc;
+    let p = c.proc.unwrap();
     pop_off();
-    p.as_mut().unwrap()
+    p
 }
 
 fn allocpid() -> u32 {
@@ -242,8 +243,8 @@ pub fn procinit() {
     let procs: [Proc; NPROC] = array::from_fn(|i| Proc::default(i));
     unsafe { PROCS = Some(procs) };
 
-    let cpus: [Cpu; NCPU] =  array::from_fn(|_| Cpu::default());
-    unsafe { CPUS = Some(cpus) };
+    // let cpus: [Cpu; NCPU] =  array::from_fn(|_| Cpu::default());
+    // unsafe { CPUS = Some(cpus) };
 }
 
 // a user program that calls exec("/init")
@@ -288,7 +289,7 @@ fn forkret() {
 
     // Still holding p->lock from scheduler.
     let my_proc = myproc();
-    my_proc.lock.release();
+    my_proc.borrow_mut().lock.release();
 
     let mut first = true;
     if first {

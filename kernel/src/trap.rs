@@ -1,3 +1,4 @@
+use core::ops::DerefMut;
 use crate::MAKE_SATP;
 use crate::memlayout::TRAMPOLINE;
 use crate::proc::myproc;
@@ -54,9 +55,12 @@ pub fn usertrapret() {
 
     // set up trapframe values that uservec will need when
     // the process next traps into the kernel.
-    let trapframe = p.trapframe.as_mut().unwrap();
+
+    let mut proc_ref = p.borrow_mut();
+    let kstack = proc_ref.kstack;
+    let trapframe = unsafe { proc_ref.trapframe.as_mut().unwrap() };
     trapframe.kernel_satp = r_satp() as u64;         // kernel page table
-    trapframe.kernel_sp = (p.kstack + PGSIZE) as u64; // process's kernel stack
+    trapframe.kernel_sp = (kstack + PGSIZE) as u64; // process's kernel stack
     trapframe.kernel_trap = usertrap as u64;
     trapframe.kernel_hartid = r_tp();         // hartid for cpuid()
 
@@ -73,7 +77,7 @@ pub fn usertrapret() {
     w_sepc(trapframe.epc as usize);
 
     // tell trampoline.S the user page table to switch to.
-    let satp = MAKE_SATP!((*p.pagetable.as_ref().unwrap() as *const PageTable).expose_addr());
+    let satp = MAKE_SATP!((*p.borrow_mut().pagetable.as_mut().unwrap() as *const PageTable).expose_addr());
 
     // jump to userret in trampoline.S at the top of memory, which
     // switches to the user page table, restores user registers,
