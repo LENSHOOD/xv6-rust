@@ -69,13 +69,11 @@
 
 use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
-use crate::buf::Buf;
 use crate::file::INode;
 use crate::fs::{FSMAGIC, SuperBlock};
 use crate::log::initlog;
 use crate::param::NINODE;
 use crate::spinlock::Spinlock;
-use crate::string::memmove;
 
 struct ITable {
     lock: Spinlock,
@@ -124,6 +122,6 @@ pub fn fsinit(dev: u32) {
     }
 }
 
-pub fn namei<'a>(path: &str) -> Option<&'a INode> {
+pub fn namei<'a>(_path: &str) -> Option<&'a INode> {
     panic!("unsupported")
 }

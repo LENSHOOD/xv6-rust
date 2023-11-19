@@ -15,9 +15,7 @@
 
 use core::ptr::NonNull;
 use crate::buf::Buf;
-use crate::fs::BSIZE;
 use crate::param::NBUF;
-use crate::sleeplock::Sleeplock;
 use crate::spinlock::Spinlock;
 use crate::virtio::virtio_disk::virtio_disk_rw;
 

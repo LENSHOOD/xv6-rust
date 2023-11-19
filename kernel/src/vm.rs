@@ -2,7 +2,7 @@ use crate::kalloc::KMEM;
 use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, printf, PTE2PA, PTE_FLAGS, PX};
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
 use crate::proc::proc_mapstacks;
-use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_SIZE, PTE_U, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp};
+use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp};
 use crate::string::{memmove, memset};
 
 /*

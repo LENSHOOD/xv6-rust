@@ -31,7 +31,7 @@ impl Sleeplock {
         }
         self.locked = 1;
         let p = myproc();
-        self.pid = p.borrow().pid;
+        self.pid = p.pid;
         self.lk.release();
     }
 
@@ -47,7 +47,7 @@ impl Sleeplock {
     pub fn holding_sleep(self: &mut Self) -> bool {
         self.lk.acquire();
         let p = myproc();
-        let r = self.locked != 0 && (self.pid == p.borrow().pid);
+        let r = self.locked != 0 && (self.pid == p.pid);
         self.lk.release();
         return r;
     }

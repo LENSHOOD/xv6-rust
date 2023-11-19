@@ -33,7 +33,7 @@ mod virtio;
 mod log;
 
 use core::alloc::{GlobalAlloc, Layout};
-use crate::kalloc::{KMEM, KMem};
+use crate::kalloc::KMem;
 use crate::printf::Printer;
 use crate::proc::cpuid;
 
@@ -128,6 +128,9 @@ pub extern "C" fn kmain() {
 
         virtio::virtio_disk::virtio_disk_init(); // emulated hard disk
         debug_log!("VirtIO disk initialized\n");
+
+        proc::userinit(); // first user process
+        debug_log!("First user process initialized\n");
 
         printf!("\nSystem boot successful\n")
     }

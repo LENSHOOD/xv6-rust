@@ -87,7 +87,7 @@ pub fn push_off() {
     let old = intr_get();
 
     intr_off();
-    let mut cpu = mycpu();
+    let cpu = mycpu();
     if (*cpu).noff == 0 {
         (*cpu).intena = old;
     }
