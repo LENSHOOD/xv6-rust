@@ -70,7 +70,7 @@
 use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{FSMAGIC, ROOTINO, SuperBlock};
+use crate::fs::{DIRSIZ, FSMAGIC, ROOTINO, SuperBlock};
 use crate::log::initlog;
 use crate::param::{NINODE, ROOTDEV};
 use crate::proc::myproc;
@@ -181,7 +181,7 @@ fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
         unsafe { inode.as_mut()?.idup() }
     };
 
-    while let p = skipelem(path) {
+    while let Some(p) = skipelem(path) {
         ip.ilock();
         if ip.file_type != T_DIR {
             ip.iunlockput();
@@ -217,15 +217,109 @@ fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
 // and return the in-memory copy. Does not lock
 // the inode and does not read it from disk.
 fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
-    todo!()
+    unsafe {
+        ITABLE.lock.acquire();
+
+        // Is the inode already in the table?
+        let mut empty: Option<&mut INode> = None;
+        for ip in &mut ITABLE.inode {
+            if ip.ref_cnt > 0 && ip.dev == dev && ip.inum == inum {
+                ip.ref_cnt += 1;
+                ITABLE.lock.release();
+                return ip;
+            }
+
+            // Remember empty slot.
+            if empty.is_none() && ip.ref_cnt == 0 {
+               empty = Some(ip);
+            }
+        }
+
+        // Recycle an inode entry.
+        if empty.is_none() {
+            panic!("iget: no inodes");
+        }
+
+        let ip = empty.unwrap();
+        ip.dev = dev;
+        ip.inum = inum;
+        ip.ref_cnt = 1;
+        ip.valid = true;
+
+        ITABLE.lock.release();
+
+        return ip;
+    }
 }
 
 struct SubPath<'a> {
     subpath: Option<&'a str>,
     name: &'a str,
 }
-fn skipelem(path: &str) -> SubPath {
-    todo!()
+
+// Paths
+
+// Copy the next path element from path into name.
+// Return a pointer to the element following the copied one.
+// The returned path has no leading slashes,
+// so the caller can check *path=='\0' to see if the name is the last one.
+// If no name to remove, return 0.
+//
+// Examples:
+//   skipelem("a/bb/c", name) = "bb/c", setting name = "a"
+//   skipelem("///a//bb", name) = "bb", setting name = "a"
+//   skipelem("a", name) = "", setting name = "a"
+//   skipelem("", name) = skipelem("////", name) = 0
+//
+fn skipelem(path: &str) -> Option<SubPath> {
+    let path_slice = path.as_bytes();
+    let mut i = 0;
+    for c in path_slice {
+        if *c != b'/' {
+            break;
+        }
+
+        i += 1;
+    }
+
+    if i == path_slice.len() {
+        return None;
+    }
+
+    let path_slice = &path_slice[i..];
+    let s = path_slice;
+
+    i = 0;
+    for c in path_slice {
+        if *c == b'/' {
+            break;
+        }
+
+        i += 1;
+    }
+
+    let mut sub_path = SubPath {
+        subpath: None,
+        name: "",
+    };
+
+    if i > DIRSIZ {
+        i = DIRSIZ;
+    }
+    sub_path.name = unsafe { core::str::from_utf8_unchecked(&s[..i]) };
+
+    let path_slice = &path_slice[i..];
+    i = 0;
+    for c in path_slice {
+        if *c != b'/' {
+            break;
+        }
+
+        i += 1;
+    }
+    sub_path.subpath = Some(unsafe { core::str::from_utf8_unchecked(&path_slice[i..]) });
+
+    return Some(sub_path);
 }
 
 // Look for a directory entry in a directory.

@@ -59,11 +59,11 @@ macro_rules! mkdev {
 // in-memory copy of an inode
 #[derive(Copy, Clone)]
 pub struct INode {
-    dev: u32, // Device number
-    inum: u32, // Inode number
+    pub(crate) dev: u32, // Device number
+    pub(crate) inum: u32, // Inode number
     pub(crate) ref_cnt: i32, // Reference count
     lock: Sleeplock, // protects everything below here
-    valid: bool, // inode has been read from disk?
+    pub(crate) valid: bool, // inode has been read from disk?
 
     pub(crate) file_type: FileType, // copy of disk inode
     major: i16,
