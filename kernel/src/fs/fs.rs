@@ -70,10 +70,12 @@
 use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{FSMAGIC, SuperBlock};
+use crate::fs::{FSMAGIC, ROOTINO, SuperBlock};
 use crate::log::initlog;
-use crate::param::NINODE;
+use crate::param::{NINODE, ROOTDEV};
+use crate::proc::myproc;
 use crate::spinlock::Spinlock;
+use crate::stat::FileType::T_DIR;
 
 struct ITable {
     lock: Spinlock,
@@ -111,6 +113,47 @@ impl SuperBlock {
     }
 }
 
+impl INode {
+    // Increment reference count for ip.
+    // Returns ip to enable ip = idup(ip1) idiom.
+    fn idup(self: &mut Self) -> &mut Self {
+        unsafe {
+            ITABLE.lock.acquire();
+            self.ref_cnt += 1;
+            ITABLE.lock.release();
+        }
+
+        self
+    }
+
+    // Lock the given inode.
+    // Reads the inode from disk if necessary.
+    fn ilock(self: &Self) {
+        todo!()
+    }
+
+    // Unlock the given inode.
+    fn iunlock(self: &Self) {
+        todo!()
+    }
+
+    // Drop a reference to an in-memory inode.
+    // If that was the last reference, the inode table entry can
+    // be recycled.
+    // If that was the last reference and the inode has no links
+    // to it, free the inode (and its content) on disk.
+    // All calls to iput() must be inside a transaction in
+    // case it has to free the inode.
+    fn iput(self: &Self) {
+        todo!()
+    }
+    // Common idiom: unlock, then put.
+    fn iunlockput(self: &Self) {
+        self.iunlock();
+        self.iput();
+    }
+}
+
 // Init fs
 pub fn fsinit(dev: u32) {
     unsafe {
@@ -122,6 +165,71 @@ pub fn fsinit(dev: u32) {
     }
 }
 
-pub fn namei<'a>(_path: &str) -> Option<&'a INode> {
-    panic!("unsupported")
+pub fn namei<'a>(path: &str) -> Option<&'a mut INode> {
+    namex(path, false)
+}
+
+// Look up and return the inode for a path name.
+// If parent != 0, return the inode for the parent and copy the final
+// path element into name, which must have room for DIRSIZ bytes.
+// Must be called inside a transaction since it calls iput().
+fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
+    let mut ip = if path == "/" {
+        iget(ROOTDEV, ROOTINO)
+    } else {
+        let mut inode = myproc().cwd?;
+        unsafe { inode.as_mut()?.idup() }
+    };
+
+    while let p = skipelem(path) {
+        ip.ilock();
+        if ip.file_type != T_DIR {
+            ip.iunlockput();
+            return None;
+        }
+
+        if nameiparent && p.subpath.is_none() {
+            // Stop one level early.
+            ip.iunlock();
+            return Some(ip);
+        }
+
+        if let next = dirlookup(ip, p.name, &mut 0) {
+            if next.is_none() {
+                ip.iunlockput();
+                return None;
+            }
+
+            ip.iunlockput();
+            ip = next.unwrap();
+        }
+
+        if nameiparent {
+            ip.iput();
+            return None;
+        }
+    }
+
+    return Some(ip);
+}
+
+// Find the inode with number inum on device dev
+// and return the in-memory copy. Does not lock
+// the inode and does not read it from disk.
+fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
+    todo!()
+}
+
+struct SubPath<'a> {
+    subpath: Option<&'a str>,
+    name: &'a str,
+}
+fn skipelem(path: &str) -> SubPath {
+    todo!()
+}
+
+// Look for a directory entry in a directory.
+// If found, set *poff to byte offset of entry.
+fn dirlookup<'a>(dp: &INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
+    todo!()
 }

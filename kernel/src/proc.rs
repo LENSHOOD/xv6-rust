@@ -148,7 +148,7 @@ pub struct Proc<'a> {
     pub(crate) trapframe: Option<*mut Trapframe>, // data page for trampoline.S
     context: Context, // swtch() here to run process
     ofile: Option<[&'a File<'a>; NOFILE]>, // Open files
-    cwd: Option<&'a INode>,           // Current directory
+    pub(crate) cwd: Option<*mut INode>,           // Current directory
     name: &'a str,               // Process name (debugging)
 }
 
@@ -272,7 +272,7 @@ pub fn userinit() {
         p.trapframe.unwrap().as_mut().unwrap().sp = PGSIZE as u64;}  // user stack pointer
 
     p.name = "initcode";
-    p.cwd = namei("/");
+    p.cwd = namei("/").map(|inner| inner as *mut INode);
 
     p.state = RUNNABLE;
 

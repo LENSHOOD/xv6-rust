@@ -6,7 +6,7 @@ pub(crate) mod fs;
 use core::mem;
 use crate::stat::FileType;
 
-pub const ROOTINO: usize = 1;   // root i-number
+pub const ROOTINO: u32 = 1;   // root i-number
 pub const BSIZE: usize = 1024;  // block size
 
 // Disk layout:

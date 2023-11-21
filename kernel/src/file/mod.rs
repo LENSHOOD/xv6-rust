@@ -61,11 +61,11 @@ macro_rules! mkdev {
 pub struct INode {
     dev: u32, // Device number
     inum: u32, // Inode number
-    ref_cnt: i32, // Reference count
+    pub(crate) ref_cnt: i32, // Reference count
     lock: Sleeplock, // protects everything below here
     valid: bool, // inode has been read from disk?
 
-    file_type: FileType, // copy of disk inode
+    pub(crate) file_type: FileType, // copy of disk inode
     major: i16,
     minor: i16,
     nlink: i16,
