@@ -42,7 +42,7 @@ struct DINode {
 }
 
 // Inodes per block.
-const IPB: usize = BSIZE / mem::size_of::<DINode>();
+const IPB: u32 = (BSIZE / mem::size_of::<DINode>()) as u32;
 
 // Block containing inode i
 #[macro_export]

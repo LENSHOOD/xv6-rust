@@ -62,15 +62,15 @@ pub struct INode {
     pub(crate) dev: u32, // Device number
     pub(crate) inum: u32, // Inode number
     pub(crate) ref_cnt: i32, // Reference count
-    lock: Sleeplock, // protects everything below here
+    pub(crate) lock: Sleeplock, // protects everything below here
     pub(crate) valid: bool, // inode has been read from disk?
 
     pub(crate) file_type: FileType, // copy of disk inode
-    major: i16,
-    minor: i16,
-    nlink: i16,
-    size: u32,
-    addrs: [u32; NDIRECT + 1]
+    pub(crate) major: i16,
+    pub(crate) minor: i16,
+    pub(crate) nlink: i16,
+    pub(crate) size: u32,
+    pub(crate) addrs: [u32; NDIRECT + 1]
 }
 
 impl INode {

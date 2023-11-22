@@ -67,15 +67,17 @@
 // dev, and inum.  One must hold ip->lock in order to
 // read or write that inode's ip->valid, ip->size, ip->type, &c.
 
+use core::mem;
 use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{DIRSIZ, FSMAGIC, ROOTINO, SuperBlock};
+use crate::fs::{DINode, DIRSIZ, FSMAGIC, IPB, ROOTINO, SuperBlock};
+use crate::IBLOCK;
 use crate::log::initlog;
 use crate::param::{NINODE, ROOTDEV};
 use crate::proc::myproc;
 use crate::spinlock::Spinlock;
-use crate::stat::FileType::T_DIR;
+use crate::stat::FileType::{NO_TYPE, T_DIR};
 
 struct ITable {
     lock: Spinlock,
@@ -128,13 +130,44 @@ impl INode {
 
     // Lock the given inode.
     // Reads the inode from disk if necessary.
-    fn ilock(self: &Self) {
-        todo!()
+    fn ilock(self: &mut Self) {
+        if self.ref_cnt < 1 {
+            panic!("ilock");
+        }
+
+        self.lock.acquire_sleep();
+
+        if !self.valid {
+            let bp = bread(self.dev, unsafe { IBLOCK!(self.inum, SB) });
+            let ino_sz = mem::size_of::<DINode>();
+            let offset = ino_sz * (self.inum % IPB) as usize;
+            let (_head, body, _tail) = unsafe {
+                bp.data[offset..offset + ino_sz].align_to::<DINode>()
+            };
+            let dip = &body[0];
+            self.file_type = dip.file_type;
+            self.major = dip.major;
+            self.minor = dip.minor;
+            self.nlink = dip.nlink;
+            self.size = dip.size;
+            self.addrs.clone_from_slice(&dip.addrs);
+
+            brelse(bp);
+            self.valid = true;
+
+            if self.file_type == NO_TYPE {
+                panic!("ilock: no type");
+            }
+        }
     }
 
     // Unlock the given inode.
-    fn iunlock(self: &Self) {
-        todo!()
+    fn iunlock(self: &mut Self) {
+        if !self.lock.holding_sleep() || self.ref_cnt < 1 {
+            panic!("iunlock");
+        }
+
+        self.lock.release_sleep();
     }
 
     // Drop a reference to an in-memory inode.
@@ -148,7 +181,7 @@ impl INode {
         todo!()
     }
     // Common idiom: unlock, then put.
-    fn iunlockput(self: &Self) {
+    fn iunlockput(self: &mut Self) {
         self.iunlock();
         self.iput();
     }
