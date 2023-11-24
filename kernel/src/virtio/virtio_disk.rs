@@ -190,5 +190,5 @@ pub fn virtio_disk_init() {
 }
 
 pub fn virtio_disk_rw(b: &Buf, write: bool) {
-    panic!("unsupported")
+    todo!()
 }

@@ -1,3 +1,4 @@
+use core::fmt::Error;
 use core::mem;
 use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
@@ -10,6 +11,7 @@ use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, UNUSED, USED};
 use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
+use crate::string::memmove;
 use crate::trap::usertrapret;
 use crate::vm::{kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
 
@@ -406,4 +408,18 @@ fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
     uvmunmap(pagetable, TRAMPOLINE, 1, false);
     uvmunmap(pagetable, TRAPFRAME, 1, false);
     uvmfree(pagetable, sz);
+}
+
+// Copy to either a user address, or kernel address,
+// depending on usr_dst.
+// Returns 0 on success, -1 on error.
+pub fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, len: usize) -> Result<(), Error>{
+    let p = myproc();
+    if is_user_dst {
+        todo!()
+        // return copyout(p->pagetable, dst, src, len);
+    } else {
+        memmove(dst, src, len);
+        return Ok(());
+    }
 }

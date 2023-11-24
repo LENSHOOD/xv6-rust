@@ -67,15 +67,16 @@
 // dev, and inum.  One must hold ip->lock in order to
 // read or write that inode's ip->valid, ip->size, ip->type, &c.
 
+use core::cmp::min;
 use core::mem;
 use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{BPB, DINode, DIRSIZ, FSMAGIC, IPB, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
+use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
 use crate::{BBLOCK, IBLOCK};
 use crate::log::{initlog, log_write};
 use crate::param::{NINODE, ROOTDEV};
-use crate::proc::myproc;
+use crate::proc::{either_copyout, myproc};
 use crate::spinlock::Spinlock;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
 
@@ -258,6 +259,90 @@ impl INode {
         log_write(bp);
         brelse(bp);
     }
+
+    // Inode content
+    //
+    // The content (data) associated with each inode is stored
+    // in blocks on the disk. The first NDIRECT block numbers
+    // are listed in ip->addrs[].  The next NINDIRECT blocks are
+    // listed in block ip->addrs[NDIRECT].
+
+    // Return the disk block address of the nth block in inode ip.
+    // If there is no such block, bmap allocates one.
+    // returns 0 if out of disk space.
+    fn bmap(self: &Self, bn: u32) -> u32 {
+        todo!()
+        // uint addr, *a;
+        // struct buf *bp;
+        //
+        // if(bn < NDIRECT){
+        //     if((addr = ip->addrs[bn]) == 0){
+        //         addr = balloc(ip->dev);
+        //         if(addr == 0)
+        //             return 0;
+        //         ip->addrs[bn] = addr;
+        //     }
+        //     return addr;
+        // }
+        // bn -= NDIRECT;
+        //
+        // if(bn < NINDIRECT){
+        //     // Load indirect block, allocating if necessary.
+        //     if((addr = ip->addrs[NDIRECT]) == 0){
+        //         addr = balloc(ip->dev);
+        //         if(addr == 0)
+        //             return 0;
+        //         ip->addrs[NDIRECT] = addr;
+        //     }
+        //     bp = bread(ip->dev, addr);
+        //     a = (uint*)bp->data;
+        //     if((addr = a[bn]) == 0){
+        //         addr = balloc(ip->dev);
+        //         if(addr){
+        //             a[bn] = addr;
+        //             log_write(bp);
+        //         }
+        //     }
+        //     brelse(bp);
+        //     return addr;
+        // }
+        //
+        // panic("bmap: out of range");
+    }
+
+    // Read data from inode.
+    // Caller must hold ip->lock.
+    // If user_dst==1, then dst is a user virtual address;
+    // otherwise, dst is a kernel address.
+    fn readi<T>(self: &Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
+        let mut n = n as u32;
+        if off > self.size || off + n < off {
+            return 0;
+        }
+
+        if off + n > self.size {
+            n = self.size - off;
+        }
+
+        let mut tot = 0;
+        loop {
+            let addr = self.bmap(off/ BSIZE as u32);
+            if addr == 0 {
+                break;
+            }
+
+            let bp = bread(self.dev, addr);
+            let m = min(n - tot, (BSIZE - off as usize % BSIZE) as u32);
+            if either_copyout(is_user_dst, dst as *mut u8, &bp.data[off as usize % BSIZE] as *const u8, m as usize).is_err() {
+                brelse(bp);
+                tot = 0;
+                break;
+            }
+            brelse(bp);
+        }
+
+        return tot as usize;
+    }
 }
 
 // Init fs
@@ -431,7 +516,36 @@ fn skipelem(path: &str) -> Option<SubPath> {
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
 fn dirlookup<'a>(dp: &INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
-    todo!()
+    if dp.file_type != T_DIR {
+        panic!("dirlookup not DIR");
+    }
+
+    let mut de = Dirent {
+        inum: 0,
+        name: [0; DIRSIZ],
+    };
+
+    let sz = mem::size_of::<Dirent>();
+    for off in (0..dp.size).step_by(sz) {
+
+        if dp.readi(false, &mut de as *mut Dirent, off, sz) != sz {
+            panic!("dirlookup read");
+        }
+
+        if de.inum == 0 {
+            continue;
+        }
+
+        if name.as_bytes().eq(&de.name) {
+            // entry matches path element
+            if *poff != 0 {
+                *poff = off;
+            }
+            return Some(iget(dp.dev, de.inum as u32));
+        }
+    }
+
+    None
 }
 
 // Free a disk block.
