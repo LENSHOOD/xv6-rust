@@ -53,7 +53,7 @@ macro_rules! IBLOCK {
 }
 
 // Bitmap bits per block
-const BPB: usize = BSIZE * 8;
+const BPB: u32 = (BSIZE * 8) as u32;
 
 // Block of free map containing bit for block b
 #[macro_export]

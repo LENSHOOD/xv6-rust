@@ -71,9 +71,9 @@ use core::mem;
 use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{DINode, DIRSIZ, FSMAGIC, IPB, ROOTINO, SuperBlock};
-use crate::IBLOCK;
-use crate::log::initlog;
+use crate::fs::{BPB, DINode, DIRSIZ, FSMAGIC, IPB, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
+use crate::{BBLOCK, IBLOCK};
+use crate::log::{initlog, log_write};
 use crate::param::{NINODE, ROOTDEV};
 use crate::proc::myproc;
 use crate::spinlock::Spinlock;
@@ -177,13 +177,86 @@ impl INode {
     // to it, free the inode (and its content) on disk.
     // All calls to iput() must be inside a transaction in
     // case it has to free the inode.
-    fn iput(self: &Self) {
-        todo!()
+    fn iput(self: &mut Self) {
+        unsafe {
+            ITABLE.lock.acquire();
+
+            if self.ref_cnt == 1 && self.valid && self.nlink == 0 {
+                // inode has no links and no other references: truncate and free.
+
+                // ip->ref == 1 means no other process can have ip locked,
+                // so this acquiresleep() won't block (or deadlock).
+                self.lock.acquire_sleep();
+
+                ITABLE.lock.release();
+
+                self.itrunc();
+                self.file_type = NO_TYPE;
+                self.iupdate();
+                self.valid = false;
+
+                self.lock.release_sleep();
+
+                ITABLE.lock.acquire();
+            }
+
+            self.ref_cnt -= 1;
+            ITABLE.lock.release();
+        }
     }
     // Common idiom: unlock, then put.
     fn iunlockput(self: &mut Self) {
         self.iunlock();
         self.iput();
+    }
+
+    // Truncate inode (discard contents).
+    // Caller must hold ip->lock.
+    fn itrunc(self: &mut Self) {
+        for i in 0..NDIRECT {
+            if self.addrs[i] != 0 {
+                bfree(self.dev, self.addrs[i]);
+                self.addrs[i] = 0;
+            }
+        }
+
+        if self.addrs[NDIRECT] != 0 {
+            let bp = bread(self.dev, self.addrs[NDIRECT]);
+            let a: [u32; NINDIRECT] = unsafe { mem::transmute(bp.data) };
+            for i in 0..NINDIRECT {
+                if a[i] != 0 {
+                    bfree(self.dev, a[i])
+                }
+            }
+            brelse(bp);
+            bfree(self.dev, self.addrs[NDIRECT]);
+            self.addrs[NDIRECT] = 0;
+        }
+
+        self.size = 0;
+        self.iupdate();
+    }
+
+    // Copy a modified in-memory inode to disk.
+    // Must be called after every change to an ip->xxx field
+    // that lives on disk.
+    // Caller must hold ip->lock.
+    fn iupdate(self: &mut Self) {
+        let bp = bread(self.dev, unsafe { IBLOCK!(self.inum, SB) });
+        let ino_sz = mem::size_of::<DINode>();
+        let offset = ino_sz * (self.inum % IPB) as usize;
+        let (_head, body, _tail) = unsafe {
+            bp.data[offset..offset + ino_sz].align_to_mut::<DINode>()
+        };
+        let dip = &mut body[0];
+        dip.file_type = self.file_type;
+        dip.major = self.major;
+        dip.minor = self.minor;
+        dip.nlink = self.nlink;
+        dip.size = self.size;
+        dip.addrs.clone_from_slice(&self.addrs);
+        log_write(bp);
+        brelse(bp);
     }
 }
 
@@ -359,4 +432,17 @@ fn skipelem(path: &str) -> Option<SubPath> {
 // If found, set *poff to byte offset of entry.
 fn dirlookup<'a>(dp: &INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
     todo!()
+}
+
+// Free a disk block.
+fn bfree(dev: u32, b: u32) {
+    let bp = bread(dev, unsafe { BBLOCK!(b, SB) });
+    let bi = b % BPB;
+    let m = 1 << (bi % 8);
+    if (bp.data[bi as usize / 8] & m) == 0 {
+        panic!("freeing free block");
+    }
+    bp.data[bi as usize / 8] &= !m;
+    log_write(bp);
+    brelse(bp);
 }
