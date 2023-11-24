@@ -73,12 +73,13 @@ use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
 use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
-use crate::{BBLOCK, IBLOCK};
+use crate::{BBLOCK, IBLOCK, printf};
 use crate::log::{initlog, log_write};
 use crate::param::{NINODE, ROOTDEV};
 use crate::proc::{either_copyout, myproc};
 use crate::spinlock::Spinlock;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
+use crate::string::memset;
 
 struct ITable {
     lock: Spinlock,
@@ -270,51 +271,53 @@ impl INode {
     // Return the disk block address of the nth block in inode ip.
     // If there is no such block, bmap allocates one.
     // returns 0 if out of disk space.
-    fn bmap(self: &Self, bn: u32) -> u32 {
-        todo!()
-        // uint addr, *a;
-        // struct buf *bp;
-        //
-        // if(bn < NDIRECT){
-        //     if((addr = ip->addrs[bn]) == 0){
-        //         addr = balloc(ip->dev);
-        //         if(addr == 0)
-        //             return 0;
-        //         ip->addrs[bn] = addr;
-        //     }
-        //     return addr;
-        // }
-        // bn -= NDIRECT;
-        //
-        // if(bn < NINDIRECT){
-        //     // Load indirect block, allocating if necessary.
-        //     if((addr = ip->addrs[NDIRECT]) == 0){
-        //         addr = balloc(ip->dev);
-        //         if(addr == 0)
-        //             return 0;
-        //         ip->addrs[NDIRECT] = addr;
-        //     }
-        //     bp = bread(ip->dev, addr);
-        //     a = (uint*)bp->data;
-        //     if((addr = a[bn]) == 0){
-        //         addr = balloc(ip->dev);
-        //         if(addr){
-        //             a[bn] = addr;
-        //             log_write(bp);
-        //         }
-        //     }
-        //     brelse(bp);
-        //     return addr;
-        // }
-        //
-        // panic("bmap: out of range");
+    fn bmap(self: &mut Self, bn: u32) -> u32 {
+        let mut bn = bn as usize;
+        if bn < NDIRECT {
+            let mut addr = self.addrs[bn];
+            if addr == 0 {
+                addr = balloc(self.dev);
+                if addr == 0 {
+                    return 0;
+                }
+                self.addrs[bn] = addr;
+            }
+            return addr;
+        }
+        bn -= NDIRECT;
+
+        if bn < NINDIRECT {
+            // Load indirect block, allocating if necessary.
+            let mut addr = self.addrs[NDIRECT];
+            if addr == 0 {
+                addr = balloc(self.dev);
+                if addr == 0 {
+                    return 0;
+                }
+                self.addrs[NDIRECT] = addr;
+            }
+            let bp = bread(self.dev, addr);
+            let mut a: [u32; NINDIRECT] = unsafe { mem::transmute(bp.data) };
+            addr = a[bn];
+            if addr == 0 {
+                addr = balloc(self.dev);
+                if addr != 0{
+                    a[bn] = addr;
+                    log_write(bp);
+                }
+            }
+            brelse(bp);
+            return addr;
+        }
+
+        panic!("bmap: out of range");
     }
 
     // Read data from inode.
     // Caller must hold ip->lock.
     // If user_dst==1, then dst is a user virtual address;
     // otherwise, dst is a kernel address.
-    fn readi<T>(self: &Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
+    fn readi<T>(self: &mut Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
         let mut n = n as u32;
         if off > self.size || off + n < off {
             return 0;
@@ -515,7 +518,7 @@ fn skipelem(path: &str) -> Option<SubPath> {
 
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
-fn dirlookup<'a>(dp: &INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
+fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
     if dp.file_type != T_DIR {
         panic!("dirlookup not DIR");
     }
@@ -546,6 +549,44 @@ fn dirlookup<'a>(dp: &INode, name: &str, poff: &mut u32) -> Option<&'a mut INode
     }
 
     None
+}
+
+// Zero a block.
+fn bzero(dev: u32, bno: u32) {
+    let bp = bread(dev, bno);
+    memset(&mut bp.data as *mut u8, 0, BSIZE);
+    log_write(bp);
+    brelse(bp);
+}
+
+// Blocks.
+
+// Allocate a zeroed disk block.
+// returns 0 if out of disk space.
+fn balloc(dev: u32) -> u32 {
+    let sz = unsafe { SB.size };
+    for b in (0..sz).step_by(BPB as usize) {
+        let bp = bread(dev, unsafe { BBLOCK!(b, SB) });
+        let mut bi = 0;
+        loop {
+            if !(bi < BPB && b + bi < sz) {
+                break;
+            }
+
+            let m = 1 << (bi % 8);
+            if (bp.data[bi as usize / 8] & m) == 0 {
+                bp.data[bi as usize / 8] |= m;  // Mark block in use.
+                log_write(bp);
+                brelse(bp);
+                bzero(dev, b + bi);
+                return b + bi;
+            }
+            bi += 1;
+        }
+        brelse(bp);
+    }
+    printf!("balloc: out of blocks\n");
+    return 0;
 }
 
 // Free a disk block.
