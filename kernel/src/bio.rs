@@ -138,7 +138,7 @@ pub fn bread(dev: u32, blockno: u32) -> &'static mut Buf {
 }
 
 // Write b's contents to disk.  Must be locked.
-fn bwrite(b: &mut Buf) {
+pub fn bwrite(b: &mut Buf) {
     if !b.lock.holding_sleep() {
         panic!("bwrite");
     }
@@ -173,7 +173,7 @@ pub fn brelse(b: &mut Buf) {
     }
 }
 
-fn bpin(b: &mut Buf) {
+pub fn bpin(b: &mut Buf) {
     unsafe {
         BCACHE.lock.acquire();
         b.refcnt += 1;
@@ -181,7 +181,7 @@ fn bpin(b: &mut Buf) {
     }
 }
 
-fn bunpin(b: &mut Buf) {
+pub fn bunpin(b: &mut Buf) {
     unsafe {
         BCACHE.lock.acquire();
         b.refcnt -= 1;
