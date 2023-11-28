@@ -423,3 +423,15 @@ pub fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, len: usiz
         return Ok(());
     }
 }
+
+// Wake up all processes sleeping on chan.
+// Must be called without any p->lock.
+pub fn wakeup<T>(chan: &T) {
+    todo!()
+}
+
+// Atomically release lock and sleep on chan.
+// Reacquires lock when awakened.
+pub fn sleep<T>(chan: &T, lk: &Spinlock) {
+    todo!()
+}

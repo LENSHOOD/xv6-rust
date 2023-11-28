@@ -5,10 +5,12 @@
 // qemu ... -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 //
 
-use core::ptr;
+use core::{mem, ptr};
 use crate::buf::Buf;
+use crate::fs::BSIZE;
 use crate::kalloc::KMEM;
-use crate::riscv::PGSIZE;
+use crate::proc::{sleep, wakeup};
+use crate::riscv::{__sync_synchronize, PGSIZE};
 use crate::spinlock::Spinlock;
 use crate::string::memset;
 use crate::virtio::*;
@@ -55,7 +57,7 @@ struct Disk<'a> {
     used: *mut VirtqUsed,
 
     // our own book-keeping.
-    free: [u8; NUM],  // is a descriptor free?
+    free: [bool; NUM],  // is a descriptor free?
     used_idx: u16, // we've looked this far in used[2..NUM].
 
     // track info about in-flight operations,
@@ -77,7 +79,7 @@ impl<'a> Disk<'a> {
             desc: ptr::null_mut(),
             avail: ptr::null_mut(),
             used: ptr::null_mut(),
-            free: [0; NUM],
+            free: [false; NUM],
             used_idx: 0,
             info: [Info{ b: None, status: 0 }; NUM],
             ops: [VirtioBlkReq{
@@ -179,7 +181,7 @@ pub fn virtio_disk_init() {
 
     // all NUM descriptors start out unused.
     for i in 0..NUM {
-        unsafe { (&mut DISK).free[i] = 1; }
+        unsafe { (&mut DISK).free[i] = true; }
     }
 
     // tell device we're completely ready.
@@ -189,6 +191,152 @@ pub fn virtio_disk_init() {
     // plic.c and trap.c arrange for interrupts from VIRTIO0_IRQ.
 }
 
-pub fn virtio_disk_rw(b: &Buf, write: bool) {
-    todo!()
+pub unsafe fn virtio_disk_rw(b: &'static mut Buf, write: bool) {
+    DISK.vdisk_lock.acquire();
+
+    // the spec's Section 5.2 says that legacy block operations use
+    // three descriptors: one for type/reserved/sector, one for the
+    // data, one for a 1-byte status result.
+
+    // allocate the three descriptors.
+    let idx = loop {
+        match alloc3_desc() {
+            None => sleep(&DISK.free, &DISK.vdisk_lock),
+            Some(idx) => break idx,
+        }
+    };
+
+    // format the three descriptors.
+    // qemu's virtio-blk.c reads them.
+
+    let sector = (b.blockno * (BSIZE / 512) as u32) as u64;
+    let buf0 = &mut DISK.ops[idx[0]];
+
+    if write {
+        buf0.desc_type = VIRTIO_BLK_T_OUT; // write the disk
+    } else {
+        buf0.desc_type = VIRTIO_BLK_T_IN; // read the disk
+    }
+    buf0.reserved = 0;
+    buf0.sector = sector;
+
+    let virt_desc_0 = DISK.desc.add(idx[0]).as_mut().unwrap();
+    virt_desc_0.addr = (buf0 as *mut VirtioBlkReq).expose_addr() as u64;
+    virt_desc_0.len = mem::size_of::<VirtioBlkReq>() as u32;
+    virt_desc_0.flags = VRING_DESC_F_NEXT;
+    virt_desc_0.next = idx[1] as u16;
+
+    let virt_desc_1 = DISK.desc.add(idx[1]).as_mut().unwrap();
+    virt_desc_1.addr = (&b.data as *const u8).expose_addr() as u64;
+    virt_desc_1.len = BSIZE as u32;
+    if write {
+        virt_desc_1.flags = 0; // device reads b->data
+    } else {
+        virt_desc_1.flags = VRING_DESC_F_WRITE; // device writes b->data
+    }
+    virt_desc_1.flags |= VRING_DESC_F_NEXT;
+    virt_desc_1.next = idx[2] as u16;
+
+    DISK.info[idx[0]].status = 0xff; // device writes 0 on success
+
+    let virt_desc_2 = DISK.desc.add(idx[2]).as_mut().unwrap();
+    virt_desc_2.addr = (&DISK.info[idx[0]].status as *const u8).expose_addr() as u64;
+    virt_desc_2.len = 1;
+    virt_desc_2.flags = VRING_DESC_F_WRITE; // device writes the status
+    virt_desc_2.next = 0;
+
+    // record struct buf for virtio_disk_intr().
+    b.disk = true;
+    DISK.info[idx[0]].b = Some(b);
+
+    // tell the device the first index in our chain of descriptors.
+    let avail = DISK.avail.as_mut().unwrap();
+    avail.ring[avail.idx as usize % NUM] = idx[0] as u16;
+
+    __sync_synchronize();
+
+    // tell the device another avail ring entry is available.
+    avail.idx += 1; // not % NUM ...
+
+    __sync_synchronize();
+
+    Write_R!(VIRTIO_MMIO_QUEUE_NOTIFY, 0); // value is queue number
+
+    // Wait for virtio_disk_intr() to say request has finished.
+    while b.disk == true {
+        sleep(b, &DISK.vdisk_lock);
+    }
+
+    DISK.info[idx[0]].b = None;
+    free_chain(idx[0]);
+
+    DISK.vdisk_lock.release();
+}
+
+// allocate three descriptors (they need not be contiguous).
+// disk transfers always use three descriptors.
+fn alloc3_desc() -> Option<[usize; 3]> {
+    let mut idx = [0; 3];
+    for i in 0..3 {
+        unsafe {
+            match alloc_desc() {
+                None => {
+                    for j in 0..i {
+                        free_desc(idx[j]);
+                    }
+                    return None;
+                }
+                Some(curr) => idx[i] = curr
+            }
+        }
+    }
+
+    Some(idx)
+}
+
+// find a free descriptor, mark it non-free, return its index.
+unsafe fn alloc_desc() -> Option<usize> {
+    for i in 0..NUM {
+        if DISK.free[i] {
+            DISK.free[i] = false;
+            return Some(i);
+        }
+    }
+
+    None
+}
+
+// mark a descriptor as free.
+unsafe fn free_desc(i: usize) {
+    if i >= NUM {
+        panic!("free_desc 1");
+    }
+
+    if DISK.free[i] {
+        panic!("free_desc 2");
+    }
+
+    let desc = DISK.desc.add(i).as_mut().unwrap();
+    desc.addr = 0;
+    desc.len = 0;
+    desc.flags = 0;
+    desc.next = 0;
+    DISK.free[i] = true;
+    wakeup(&DISK.free[0]);
+}
+
+// free a chain of descriptors.
+unsafe fn free_chain(i: usize) {
+    let mut i = i;
+    loop {
+        let desc = DISK.desc.add(i).as_mut().unwrap();
+        let flag = desc.flags;
+        let nxt = desc.next;
+        free_desc(i);
+        if flag & VRING_DESC_F_NEXT != 0 {
+            break
+        }
+
+        i = nxt as usize;
+    }
 }

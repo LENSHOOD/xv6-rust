@@ -59,8 +59,8 @@ struct VirtqDesc {
     flags: u16,
     next: u16,
 }
-const VRING_DESC_F_NEXT: usize = 1; // chained with another descriptor
-const VRING_DESC_F_WRITE: usize = 2; // device writes (vs read)
+const VRING_DESC_F_NEXT: u16 = 1; // chained with another descriptor
+const VRING_DESC_F_WRITE: u16 = 2; // device writes (vs read)
 
 // the (entire) avail ring, from the spec.
 #[derive(Copy, Clone)]
@@ -89,8 +89,8 @@ struct VirtqUsed {
 // these are specific to virtio block devices, e.g. disks,
 // described in Section 5.2 of the spec.
 
-const VIRTIO_BLK_T_IN: usize = 0; // read the disk
-const VIRTIO_BLK_T_OUT: usize = 1; // write the disk
+const VIRTIO_BLK_T_IN: u32 = 0; // read the disk
+const VIRTIO_BLK_T_OUT: u32 = 1; // write the disk
 
 // the format of the first descriptor in a disk request.
 // to be followed by two more descriptors containing
