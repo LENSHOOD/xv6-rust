@@ -191,7 +191,8 @@ pub fn virtio_disk_init() {
     // plic.c and trap.c arrange for interrupts from VIRTIO0_IRQ.
 }
 
-pub unsafe fn virtio_disk_rw(b: &'static mut Buf, write: bool) {
+pub unsafe fn virtio_disk_rw(b: *mut Buf, write: bool) {
+    let b = b.as_mut().unwrap();
     DISK.vdisk_lock.acquire();
 
     // the spec's Section 5.2 says that legacy block operations use
