@@ -74,7 +74,7 @@ impl Spinlock {
 
     /// Check whether this cpu is holding the lock.
     /// Interrupts must be off.
-    fn holding(self: &Self) -> bool {
+    pub fn holding(self: &Self) -> bool {
         self.locked == 1 && self.cpu == Some(mycpu())
     }
 }

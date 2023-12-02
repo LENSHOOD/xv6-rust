@@ -1,4 +1,4 @@
-use crate::file::{File, INode};
+use crate::file::File;
 use crate::param::NFILE;
 use crate::spinlock::Spinlock;
 

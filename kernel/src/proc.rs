@@ -8,14 +8,15 @@ use crate::kalloc::KMEM;
 use crate::KSTACK;
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
-use crate::proc::Procstate::{RUNNABLE, UNUSED, USED};
-use crate::riscv::{PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
+use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED};
+use crate::riscv::{intr_get, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
 use crate::vm::{kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
 
 // Saved registers for kernel context switches.
+#[repr(C)]
 #[derive(Copy, Clone)]
 struct Context {
     ra: u64,
@@ -66,6 +67,7 @@ static mut INIT_PROC: Option<&mut Proc> = None;
 
 extern {
     static trampoline: u8; // trampoline.S
+    fn swtch(curr_ctx: &Context, backup_ctx: &Context);
 }
 
 // per-process data for the trap handling code in trampoline.S.
@@ -427,11 +429,73 @@ pub fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, len: usiz
 // Wake up all processes sleeping on chan.
 // Must be called without any p->lock.
 pub fn wakeup<T>(chan: &T) {
-    todo!()
+    for p in unsafe { &mut PROCS } {
+        if p as *const Proc != myproc() as *const Proc {
+            p.lock.acquire();
+            if p.state == SLEEPING && p.chan == Some(chan as *const T as *const u8) {
+                p.state = RUNNABLE;
+            }
+            p.lock.release()
+        }
+    }
 }
 
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
-pub fn sleep<T>(chan: &T, lk: &Spinlock) {
-    todo!()
+pub fn sleep<T>(chan: *const T, lk: &mut Spinlock) {
+    let p = myproc();
+
+    // Must acquire p->lock in order to
+    // change p->state and then call sched.
+    // Once we hold p->lock, we can be
+    // guaranteed that we won't miss any wakeup
+    // (wakeup locks p->lock),
+    // so it's okay to release lk.
+
+    p.lock.acquire();  //DOC: sleeplock1
+    lk.release();
+
+    // Go to sleep.
+    p.chan = Some(chan as *const u8);
+    p.state = SLEEPING;
+
+    sched();
+
+    // Tidy up.
+    p.chan = None;
+
+    // Reacquire original lock.
+    p.lock.release();
+    lk.acquire();
+}
+
+// Switch to scheduler.  Must hold only p->lock
+// and have changed proc->state. Saves and restores
+// intena because intena is a property of this
+// kernel thread, not this CPU. It should
+// be proc->intena and proc->noff, but that would
+// break in the few places where a lock is held but
+// there's no process.
+fn sched() {
+    let p = myproc();
+
+    if !p.lock.holding() {
+        panic!("sched p->lock");
+    }
+
+    if mycpu().noff != 1 {
+        panic!("sched locks");
+    }
+
+    if p.state == RUNNING {
+        panic!("sched running");
+    }
+
+    if intr_get() {
+        panic!("sched interruptible");
+    }
+
+    let intena = mycpu().intena;
+    unsafe { swtch(&p.context, &mycpu().context.unwrap()); }
+    mycpu().intena = intena;
 }

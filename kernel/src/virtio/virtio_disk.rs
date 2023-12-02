@@ -202,7 +202,7 @@ pub unsafe fn virtio_disk_rw(b: *mut Buf, write: bool) {
     // allocate the three descriptors.
     let idx = loop {
         match alloc3_desc() {
-            None => sleep(&DISK.free, &DISK.vdisk_lock),
+            None => sleep(&DISK.free as *const [bool; NUM], &mut DISK.vdisk_lock),
             Some(idx) => break idx,
         }
     };
@@ -265,7 +265,7 @@ pub unsafe fn virtio_disk_rw(b: *mut Buf, write: bool) {
 
     // Wait for virtio_disk_intr() to say request has finished.
     while b.disk == true {
-        sleep(b, &DISK.vdisk_lock);
+        sleep(b as *const Buf, &mut DISK.vdisk_lock);
     }
 
     DISK.info[idx[0]].b = None;

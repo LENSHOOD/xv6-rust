@@ -1,4 +1,4 @@
-use crate::proc::myproc;
+use crate::proc::{myproc, sleep, wakeup};
 use crate::spinlock::Spinlock;
 
 // Long-term locks for processes
@@ -26,8 +26,7 @@ impl Sleeplock {
         self.lk.acquire();
 
         while self.locked != 0 {
-            // TODO: sleep
-            // sleep(lk, &lk->lk);
+            sleep(self as *const Sleeplock, &mut self.lk);
         }
         self.locked = 1;
         let p = myproc();
@@ -39,8 +38,7 @@ impl Sleeplock {
         self.lk.acquire();
         self.locked = 0;
         self.pid = 0;
-        // TODO: wakeup
-        // wakeup(lk);
+        wakeup(&self);
         self.lk.release();
     }
 
