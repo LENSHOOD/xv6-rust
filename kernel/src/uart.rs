@@ -1,3 +1,4 @@
+use crate::proc::{sleep, wakeup};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 
 // the UART control registers are memory-mapped
@@ -52,8 +53,8 @@ macro_rules! WriteReg {
 pub struct Uart {
     uart_tx_lock: Spinlock,
     uart_tx_buf: [u8; UART_TX_BUF_SIZE],
-    uart_tx_w: usize,
-    uart_tx_r: usize,
+    uart_tx_w: usize, // write next to uart_tx_buf[uart_tx_w % UART_TX_BUF_SIZE]
+    uart_tx_r: usize, // read next from uart_tx_buf[uart_tx_r % UART_TX_BUF_SIZE]
 }
 
 impl Uart {
@@ -108,8 +109,7 @@ impl Uart {
         while self.uart_tx_w == self.uart_tx_r + UART_TX_BUF_SIZE {
             // buffer is full.
             // wait for uartstart() to open up space in the buffer.
-            // TODO: no sched yet
-            // sleep(&uart_tx_r, &uart_tx_lock);
+            sleep(&self.uart_tx_r as *const usize, &mut self.uart_tx_lock);
         }
         self.uart_tx_buf[self.uart_tx_w % UART_TX_BUF_SIZE] = c;
         self.uart_tx_w += 1;
@@ -159,8 +159,7 @@ impl Uart {
             self.uart_tx_r += 1;
 
             // maybe uartputc() is waiting for space in the buffer.
-            // TODO: no sched yet
-            // wakeup(&uart_tx_r);
+            wakeup(&self.uart_tx_r);
 
             WriteReg!(THR, c);
         }
