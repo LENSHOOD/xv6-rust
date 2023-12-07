@@ -9,7 +9,7 @@ use crate::KSTACK;
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED};
-use crate::riscv::{intr_get, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
+use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
@@ -467,6 +467,40 @@ pub fn sleep<T>(chan: *const T, lk: &mut Spinlock) {
     // Reacquire original lock.
     p.lock.release();
     lk.acquire();
+}
+
+// Per-CPU process scheduler.
+// Each CPU calls scheduler() after setting itself up.
+// Scheduler never returns.  It loops, doing:
+//  - choose a process to run.
+//  - swtch to start running that process.
+//  - eventually that process transfers control
+//    via swtch back to the scheduler.
+pub fn scheduler() {
+    let c = mycpu();
+
+    c.proc = None;
+    loop {
+        // Avoid deadlock by ensuring that devices can interrupt.
+        intr_on();
+
+        for p in unsafe { &mut PROCS } {
+            p.lock.acquire();
+            if p.state == RUNNABLE {
+                // Switch to chosen process.  It is the process's job
+                // to release its lock and then reacquire it
+                // before jumping back to us.
+                p.state = RUNNING;
+                c.proc = Some(p);
+                unsafe { swtch(c.context.as_ref().unwrap(), &p.context) }
+
+                // Process is done running for now.
+                // It should have changed its p->state before coming back.
+                c.proc = None;
+            }
+            p.lock.release();
+        }
+    }
 }
 
 // Switch to scheduler.  Must hold only p->lock

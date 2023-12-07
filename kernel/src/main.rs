@@ -33,9 +33,11 @@ mod virtio;
 mod log;
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::sync::atomic::{AtomicBool, Ordering};
 use crate::kalloc::KMem;
 use crate::printf::Printer;
 use crate::proc::cpuid;
+use crate::riscv::__sync_synchronize;
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS
@@ -82,6 +84,8 @@ unsafe impl GlobalAlloc for NoopAllocator {
 }
 #[global_allocator]
 static ALLOCATOR: NoopAllocator = NoopAllocator{};
+
+static STARTED: AtomicBool = AtomicBool::new(false);
 
 #[no_mangle]
 pub extern "C" fn kmain() {
@@ -132,6 +136,18 @@ pub extern "C" fn kmain() {
         proc::userinit(); // first user process
         debug_log!("First user process initialized\n");
 
+        __sync_synchronize();
+        STARTED.store(true, Ordering::Relaxed);
         printf!("\nSystem boot successful\n")
+    } else {
+        while !STARTED.load(Ordering::Relaxed) {}
+
+        __sync_synchronize();
+        printf!("hart {} starting\n", cpuid());
+        vm::kvminithart();    // turn on paging
+        trap::trapinithart();   // install kernel trap vector
+        plic::plicinithart();    // ask PLIC for device interrupts
     }
+
+    proc::scheduler();
 }
