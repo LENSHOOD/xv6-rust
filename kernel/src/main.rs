@@ -29,8 +29,8 @@ mod file;
 mod pipe;
 mod stat;
 mod virtio;
-
 mod log;
+mod syscall;
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::sync::atomic::{AtomicBool, Ordering};

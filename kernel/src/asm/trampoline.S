@@ -19,7 +19,7 @@ trampoline:
 .align 4
 .globl uservec
 uservec:    
-	#
+	    #
         # trap.c sets stvec to point here, so
         # traps from user space start here,
         # in supervisor mode, but with a
@@ -33,8 +33,8 @@ uservec:
         # each process has a separate p->trapframe memory area,
         # but it's mapped to the same virtual address
         # (TRAPFRAME) in every process's user page table.
-        #li a0, TRAPFRAME
-        li a0, 274877898752
+        li a0, TRAPFRAME
+        # li a0, 274877898752
 
         # save the user registers in TRAPFRAME
         sd ra, 40(a0)
@@ -68,7 +68,7 @@ uservec:
         sd t5, 272(a0)
         sd t6, 280(a0)
 
-	# save the user a0 in p->trapframe->a0
+	    # save the user a0 in p->trapframe->a0
         csrr t0, sscratch
         sd t0, 112(a0)
 

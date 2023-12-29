@@ -264,16 +264,17 @@ const INIT_CODE: [u8; 52] = [
 
 // Set up first user process.
 pub fn userinit() {
-    let p = allocproc();
-    let p = p.unwrap();
+    let p = allocproc().unwrap();
     // allocate one user page and copy initcode's instructions
     // and data into it.
     uvmfirst(unsafe { p.pagetable.unwrap().as_mut().unwrap() }, &INIT_CODE as *const u8, mem::size_of_val(&INIT_CODE));
     p.sz = PGSIZE;
 
     // prepare for the very first "return" from kernel to user.
-    unsafe { p.trapframe.unwrap().as_mut().unwrap().epc = 0;      // user program counter
-        p.trapframe.unwrap().as_mut().unwrap().sp = PGSIZE as u64;}  // user stack pointer
+    unsafe {
+        p.trapframe.unwrap().as_mut().unwrap().epc = 0;      // user program counter
+        p.trapframe.unwrap().as_mut().unwrap().sp = PGSIZE as u64; // user stack pointer
+    }
 
     p.name = "initcode";
     p.cwd = namei("/").map(|inner| inner as *mut INode);
