@@ -191,6 +191,32 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
     Some(&mut (curr_pgtbl.0)[PX!(0, va)])
 }
 
+// Look up a virtual address, return the physical address,
+// or 0 if not mapped.
+// Can only be used to look up user pages.
+fn walkaddr(page_table: &mut PageTable, va: usize) -> Option<usize> {
+    if va >= MAXVA {
+        return None;
+    }
+
+    let pte = walk(page_table, va, 0);
+    if pte.is_none() {
+        return None;
+    }
+
+    let pte = pte.unwrap();
+    if (pte.0 & PTE_V) == 0 {
+        return None;
+    }
+    if (pte.0 & PTE_U) == 0 {
+        return None
+    }
+
+    let pa = PTE2PA!(pte.0);
+    return Some(pa);
+}
+
+
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
 pub fn kvminithart() {
@@ -259,4 +285,55 @@ pub fn uvmfree(pagetable: &mut PageTable, sz: usize) {
         uvmunmap(pagetable, 0, PGROUNDUP!(sz)/PGSIZE, true);
     }
     freewalk(pagetable);
+}
+
+// Copy a null-terminated string from user to kernel.
+// Copy bytes to dst from virtual address srcva in a given page table,
+// until a '\0', or max.
+// Return 0 on success, -1 on error.
+fn copyinstr(page_table: &mut PageTable, dst: *mut char, srcva: usize, mut max: usize) {
+    let mut n = 0;
+    let mut va0 = 0;
+    let mut pa0 = 0;
+    let mut got_null = 0;
+    let mut srcva = srcva;
+
+    while got_null == 0 && max > 0 {
+        va0 = PGROUNDDOWN!(srcva);
+        let pa0_op = walkaddr(page_table, va0);
+        if pa0_op.is_none() {
+            return -1;
+        }
+        pa0 = pa0_op.unwrap();
+
+        n = PGSIZE - (srcva - va0);
+        if n > max {
+            n = max;
+        }
+
+        let p = (pa0 + (srcva - va0)) as *mut char;
+        unsafe {
+            while n > 0 {
+                if *p == '\0' {
+                    *dst = '\0';
+                    got_null = 1;
+                    break;
+                } else {
+                    *dst = *p;
+                }
+                n -= 1;
+                max -= 1;
+                let _ = p.add(1);
+                let _ = dst.add(1);
+            }
+        }
+
+        srcva = va0 + PGSIZE;
+    }
+
+    if got_null {
+        return 0;
+    } else {
+        return -1;
+    }
 }

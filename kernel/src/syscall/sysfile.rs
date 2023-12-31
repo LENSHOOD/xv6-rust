@@ -1,11 +1,13 @@
 use crate::param::{MAXARG, MAXPATH};
+use crate::syscall::syscall::argaddr;
 
 fn sys_exec() -> u64 {
-    char path[MAXPATH], *argv[MAXARG];
+    let path: [u8; MAXPATH] = [0; MAXPATH];
+    let path: [Option<&u8>; MAXARG] = [None; MAXARG];
     int i;
-    uint64 uargv, uarg;
 
-    argaddr(1, &uargv);
+    let uarg: u64 = 0;
+    let uargv = argaddr(1);
     if(argstr(0, path, MAXPATH) < 0) {
         return -1;
     }
