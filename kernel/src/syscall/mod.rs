@@ -23,3 +23,10 @@ pub const SYS_unlink: u8 = 18;
 pub const SYS_link: u8 = 19;
 pub const SYS_mkdir: u8 = 20;
 pub const SYS_close: u8 = 21;
+
+#[macro_export]
+macro_rules! NELEM {
+    ( $x:expr ) => {
+        x.len()
+    };
+}

@@ -287,16 +287,48 @@ pub fn uvmfree(pagetable: &mut PageTable, sz: usize) {
     freewalk(pagetable);
 }
 
+// Copy from user to kernel.
+// Copy len bytes to dst from virtual address srcva in a given page table.
+// Return 0 on success, -1 on error.
+pub fn copyin(page_table: &mut PageTable, dst: *mut u8, srcva: usize, len: usize) -> i8 {
+    let mut n = 0;
+    let mut va0 = 0;
+    let mut pa0 = 0;
+    let mut srcva = srcva;
+    let mut len = len;
+
+    while len > 0 {
+        va0 = PGROUNDDOWN!(srcva);
+        let pa0_op = walkaddr(page_table, va0);
+        if pa0_op.is_none() {
+            return -1;
+        }
+        pa0 = pa0_op.unwrap();
+
+        n = PGSIZE - (srcva - va0);
+        if n > len {
+            n = len;
+        }
+        memmove(dst, (pa0 + (srcva - va0)) as *mut u8, n);
+
+        len -= n;
+        unsafe { dst.add(n) };
+        srcva = va0 + PGSIZE;
+    }
+    return 0;
+}
+
 // Copy a null-terminated string from user to kernel.
 // Copy bytes to dst from virtual address srcva in a given page table,
 // until a '\0', or max.
 // Return 0 on success, -1 on error.
-fn copyinstr(page_table: &mut PageTable, dst: *mut char, srcva: usize, mut max: usize) {
+pub fn copyinstr(page_table: &mut PageTable, dst: *mut char, srcva: usize, max: usize) -> i8 {
     let mut n = 0;
     let mut va0 = 0;
     let mut pa0 = 0;
     let mut got_null = 0;
     let mut srcva = srcva;
+    let mut max = max;
 
     while got_null == 0 && max > 0 {
         va0 = PGROUNDDOWN!(srcva);

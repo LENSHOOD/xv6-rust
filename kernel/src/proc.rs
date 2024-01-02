@@ -147,7 +147,7 @@ pub struct Proc<'a> {
 
     // these are private to the process, so p->lock need not be held.
     pub(crate) kstack: usize, // Virtual address of kernel stack
-    sz: usize, // Size of process memory (bytes)
+    pub(crate) sz: usize, // Size of process memory (bytes)
     pub(crate) pagetable: Option<*mut PageTable>, // User page table
     pub(crate) trapframe: Option<*mut Trapframe>, // data page for trampoline.S
     context: Context, // swtch() here to run process
