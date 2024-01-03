@@ -2,8 +2,10 @@ use core::mem;
 use crate::bio::{bpin, bread, brelse, bunpin, bwrite};
 use crate::buf::Buf;
 use crate::fs::{BSIZE, SuperBlock};
-use crate::param::LOGSIZE;
+use crate::param::{LOGSIZE, MAXOPBLOCKS};
+use crate::proc::{sleep, wakeup};
 use crate::spinlock::Spinlock;
+use crate::string::memmove;
 
 // Simple logging that allows concurrent FS system calls.
 //
@@ -152,5 +154,80 @@ pub fn log_write(b: &mut Buf) {
         }
 
         LOG.lock.release();
+    }
+}
+
+// Copy modified blocks from cache to log.
+unsafe fn write_log() {
+    for tail in 0..LOG.lh.n {
+        let to = bread(LOG.dev, LOG.start+tail+1); // log block
+        let from = bread(LOG.dev, LOG.lh.block[tail]); // cache block
+        memmove(&mut to.data as *mut u8, &from.data as *const u8, BSIZE);
+        bwrite(to);  // write the log
+        brelse(from);
+        brelse(to);
+    }
+}
+
+unsafe fn commit() {
+    if LOG.lh.n > 0 {
+        write_log();     // Write modified blocks from cache to log
+        write_head();    // Write header to disk -- the real commit
+        install_trans(false); // Now install writes to home locations
+        LOG.lh.n = 0;
+        write_head();    // Erase the transaction from the log
+    }
+}
+
+// called at the start of each FS system call.
+pub fn begin_op() {
+    unsafe {
+        LOG.lock.acquire();
+        loop {
+            if(LOG.committing){
+                sleep(&LOG, &mut LOG.lock);
+            } else if (LOG.lh.n as usize + (LOG.outstanding+1)*MAXOPBLOCKS) > LOGSIZE {
+                // this op might exhaust log space; wait for commit.
+                sleep(&LOG, &mut LOG.lock);
+            } else {
+                LOG.outstanding += 1;
+                LOG.lock.release();
+                break;
+            }
+        }
+    }
+}
+
+// called at the end of each FS system call.
+// commits if this was the last outstanding operation.
+pub fn end_op() {
+    unsafe {
+        let mut do_commit = 0;
+
+        LOG.lock.acquire();
+        LOG.outstanding -= 1;
+        if LOG.committing {
+            panic!("log.committing");
+        }
+        if LOG.outstanding == 0 {
+            do_commit = 1;
+            LOG.committing = 1;
+        } else {
+            // begin_op() may be waiting for log space,
+            // and decrementing log.outstanding has decreased
+            // the amount of reserved space.
+            wakeup(&LOG);
+        }
+        LOG.lock.release();
+
+        if do_commit {
+            // call commit w/o holding locks, since not allowed
+            // to sleep with locks.
+            commit();
+            LOG.lock.acquire();
+            LOG.committing = 0;
+            wakeup(&LOG);
+            LOG.lock.release();
+        }
     }
 }

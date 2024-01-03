@@ -132,7 +132,7 @@ impl INode {
 
     // Lock the given inode.
     // Reads the inode from disk if necessary.
-    fn ilock(self: &mut Self) {
+    pub fn ilock(self: &mut Self) {
         if self.ref_cnt < 1 {
             panic!("ilock");
         }
@@ -317,7 +317,7 @@ impl INode {
     // Caller must hold ip->lock.
     // If user_dst==1, then dst is a user virtual address;
     // otherwise, dst is a kernel address.
-    fn readi<T>(self: &mut Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
+    pub fn readi<T>(self: &mut Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
         let mut n = n as u32;
         if off > self.size || off + n < off {
             return 0;

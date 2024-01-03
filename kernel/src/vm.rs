@@ -287,6 +287,49 @@ pub fn uvmfree(pagetable: &mut PageTable, sz: usize) {
     freewalk(pagetable);
 }
 
+// Allocate PTEs and physical memory to grow process from oldsz to
+// newsz, which need not be page aligned.  Returns new size or 0 on error.
+pub fn uvmalloc(page_table: &mut PageTable, oldsz: usize, newsz: usize, xperm: usize) -> usize {
+    if newsz < oldsz {
+        return oldsz;
+    }
+
+    let mut mem;
+    let oldsz = PGROUNDUP!(oldsz);
+    for a in (0..newsz).step_by(PGSIZE) {
+        mem = unsafe { KMEM.kalloc() };
+        if mem.is_null() {
+            uvmdealloc(page_table, a, oldsz);
+            return 0;
+        }
+        memset(mem, 0, PGSIZE);
+        if mappages(page_table, a, PGSIZE, mem.expose_addr(), PTE_R|PTE_U|xperm) != 0 {
+            unsafe { KMEM.kfree(mem); }
+        }
+        uvmdealloc(page_table, a, oldsz);
+        return 0;
+    }
+
+    return newsz;
+}
+
+// Deallocate user pages to bring the process size from oldsz to
+// newsz.  oldsz and newsz need not be page-aligned, nor does newsz
+// need to be less than oldsz.  oldsz can be larger than the actual
+// process size.  Returns the new process size.
+pub fn uvmdealloc(page_table: &mut PageTable, oldsz: usize, newsz: usize) -> usize {
+    if newsz >= oldsz {
+        return oldsz;
+    }
+
+    if PGROUNDUP!(newsz) < PGROUNDUP!(oldsz) {
+        let npages = (PGROUNDUP!(oldsz) - PGROUNDUP!(newsz)) / PGSIZE;
+        uvmunmap(page_table, PGROUNDUP!(newsz), npages, true);
+    }
+
+    return newsz;
+}
+
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.

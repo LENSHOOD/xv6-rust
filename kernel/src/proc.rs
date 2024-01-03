@@ -378,7 +378,7 @@ fn freeproc(p: &mut Proc) {
 
 // Create a user page table for a given process, with no user memory,
 // but with trampoline and trapframe pages.
-fn proc_pagetable<'a>(p: &Proc) -> Option<*mut PageTable> {
+pub fn proc_pagetable<'a>(p: &Proc) -> Option<*mut PageTable> {
     // An empty page table.
     let pagetable = uvmcreate()?;
 

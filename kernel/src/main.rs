@@ -31,6 +31,8 @@ mod stat;
 mod virtio;
 mod log;
 mod syscall;
+mod exec;
+mod elf;
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::sync::atomic::{AtomicBool, Ordering};
