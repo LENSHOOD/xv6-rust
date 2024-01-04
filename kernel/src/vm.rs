@@ -194,7 +194,7 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
 // Look up a virtual address, return the physical address,
 // or 0 if not mapped.
 // Can only be used to look up user pages.
-fn walkaddr(page_table: &mut PageTable, va: usize) -> Option<usize> {
+pub fn walkaddr(page_table: &mut PageTable, va: usize) -> Option<usize> {
     if va >= MAXVA {
         return None;
     }
@@ -330,6 +330,46 @@ pub fn uvmdealloc(page_table: &mut PageTable, oldsz: usize, newsz: usize) -> usi
     return newsz;
 }
 
+// mark a PTE invalid for user access.
+// used by exec for the user stack guard page.
+pub fn uvmclear(page_table: &mut PageTable, va: usize) {
+    let pte_op = walk(page_table, va, 0);
+    if pte_op.is_none() {
+        panic!("uvmclear");
+    }
+    let pte = pte_op.unwrap();
+    *pte &= !PTE_U;
+}
+
+// Copy from kernel to user.
+// Copy len bytes from src to virtual address dstva in a given page table.
+// Return 0 on success, -1 on error.
+pub fn copyout(page_table: &mut PageTable, dstva: usize, src: *const u8, len: usize) -> i8 {
+    let va0;
+    let n;
+    let mut len = len;
+    let mut dstva = dstva;
+    while len > 0 {
+        va0 = PGROUNDDOWN!(dstva);
+        let pa0_op = walkaddr(page_table, va0);
+        if pa0_op.is_none() {
+            return -1;
+        }
+        let pa0 = pa0_op.unwrap();
+
+        n = PGSIZE - (dstva - va0);
+        if n > len {
+            n = len;
+        }
+        memmove((pa0 + (dstva - va0)) as *mut u8, src, n);
+
+        len -= n;
+        unsafe { src.add(n) };
+        dstva = va0 + PGSIZE;
+    }
+    return 0;
+}
+
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
@@ -365,7 +405,7 @@ pub fn copyin(page_table: &mut PageTable, dst: *mut u8, srcva: usize, len: usize
 // Copy bytes to dst from virtual address srcva in a given page table,
 // until a '\0', or max.
 // Return 0 on success, -1 on error.
-pub fn copyinstr(page_table: &mut PageTable, dst: *mut char, srcva: usize, max: usize) -> i8 {
+pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: usize) -> i8 {
     let mut n = 0;
     let mut va0 = 0;
     let mut pa0 = 0;
@@ -386,11 +426,11 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut char, srcva: usize, max: 
             n = max;
         }
 
-        let p = (pa0 + (srcva - va0)) as *mut char;
+        let p = (pa0 + (srcva - va0)) as *mut u8;
         unsafe {
             while n > 0 {
-                if *p == '\0' {
-                    *dst = '\0';
+                if *p == '\0' as u8 {
+                    *dst = '\0' as u8;
                     got_null = 1;
                     break;
                 } else {

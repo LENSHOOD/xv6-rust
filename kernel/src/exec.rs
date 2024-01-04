@@ -1,11 +1,14 @@
 use core::mem;
 use crate::elf::{ELF_MAGIC, ELF_PROG_LOAD, ElfHeader, ProgramHeader};
+use crate::file::INode;
 use crate::fs::fs::namei;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXARG, MAXPATH};
-use crate::proc::{myproc, proc_pagetable};
-use crate::riscv::{PGSIZE, PTE_W, PTE_X};
-use crate::vm::uvmalloc;
+use crate::PGROUNDUP;
+use crate::proc::{myproc, proc_freepagetable, proc_pagetable};
+use crate::riscv::{PageTable, PGSIZE, PTE_W, PTE_X};
+use crate::string::strlen;
+use crate::vm::{copyout, uvmalloc, uvmclear, walkaddr};
 
 fn flags2perm(flags: u32) -> usize {
     let mut perm = 0;
@@ -18,11 +21,12 @@ fn flags2perm(flags: u32) -> usize {
     return perm;
 }
 
-fn exec(path: &[char; MAXPATH], argv: &[Option<&mut [char]>; MAXARG]) -> i32 {
+pub fn exec(path: &[u8; MAXPATH], argv: &[Option<&mut [u8]>; MAXARG]) -> i32 {
     let p = myproc();
 
     begin_op();
 
+    let path = unsafe { core::str::from_utf8_unchecked(path) };
     let ip_op = namei(path);
     if ip_op.is_none() {
         end_op();
@@ -36,18 +40,18 @@ fn exec(path: &[char; MAXPATH], argv: &[Option<&mut [char]>; MAXARG]) -> i32 {
     let mut elf = ElfHeader::create();
     let tot = ip.readi(false, &mut elf, 0, mem::size_of::<ElfHeader>());
     if tot != mem::size_of::<ElfHeader>() {
-        goto bad;
+        return goto_bad(None, 0, Some(ip));;
     }
 
     if elf.magic != ELF_MAGIC {
-        goto bad;
+        return goto_bad(None, 0, Some(ip));;
     }
 
     let mut page_table_op = proc_pagetable(p);
     if page_table_op.is_none() {
-        goto bad;
+        return goto_bad(None, 0, Some(ip));;
     }
-    let mut page_table = page_table_op.unwrap();
+    let page_table = unsafe { page_table_op.unwrap().as_mut().unwrap() };
 
     // Load program into memory.
     let mut off = elf.phoff as u32;
@@ -57,112 +61,118 @@ fn exec(path: &[char; MAXPATH], argv: &[Option<&mut [char]>; MAXARG]) -> i32 {
     for i in 0..elf.phnum {
         let tot = ip.readi(false, &mut ph, off, ph_sz);
         if tot != ph_sz {
-            goto bad;
+            return goto_bad(Some(page_table), sz, Some(ip));;
         }
         if ph.hdr_type != ELF_PROG_LOAD {
             continue;
         }
         if ph.memsz < ph.filesz {
-            goto bad;
+            return goto_bad(Some(page_table), sz, Some(ip));;
         }
         if ph.vaddr + ph.memsz < ph.vaddr {
-            goto bad;
+            return goto_bad(Some(page_table), sz, Some(ip));;
         }
         if ph.vaddr % PGSIZE != 0 {
-            goto bad;
+            return goto_bad(Some(page_table), sz, Some(ip));;
         }
 
-        let sz1 = uvmalloc(&mut page_table, sz, (ph.vaddr + ph.memsz) as usize, flags2perm(ph.flags));
+        let sz1 = uvmalloc(page_table, sz, (ph.vaddr + ph.memsz) as usize, flags2perm(ph.flags));
         if sz1 == 0 {
-            goto bad;
+            return goto_bad(Some(page_table), sz, Some(ip));;
         }
         sz = sz1;
-        if loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0 {
-            goto bad;
+        if loadseg(page_table, ph.vaddr, ip, ph.off, ph.filesz) < 0 {
+            return goto_bad(Some(page_table), sz, Some(ip));;
         }
 
         off += ph_sz;
     }
-
-    for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-
-
-        uint64 sz1;
-        if((sz1 = ) == 0)
-            goto bad;
-        sz = sz1;
-        if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
-            goto bad;
-    }
-    iunlockput(ip);
+    ip.iunlockput();
     end_op();
-    ip = 0;
 
-    p = myproc();
-    uint64 oldsz = p->sz;
+    let p = myproc();
+    let oldsz = p.sz;
 
     // Allocate two pages at the next page boundary.
     // Make the first inaccessible as a stack guard.
     // Use the second as the user stack.
-    sz = PGROUNDUP(sz);
-    uint64 sz1;
-    if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE, PTE_W)) == 0)
-        goto bad;
+    sz = PGROUNDUP!(sz);
+    let sz1 = uvmalloc(page_table, sz, sz + 2*PGSIZE, PTE_W);
+    if sz1 == 0 {
+        return goto_bad(Some(page_table), sz, Some(ip));;
+    }
     sz = sz1;
-    uvmclear(pagetable, sz-2*PGSIZE);
-    sp = sz;
-    stackbase = sp - PGSIZE;
+    uvmclear(page_table, sz-2*PGSIZE);
 
+    let mut sp = sz;
+    let stackbase = sp - PGSIZE;
+    let argc = 0;
+    let mut ustack: [usize; MAXARG] = [0; MAXARG];
     // Push argument strings, prepare rest of stack in ustack.
-    for(argc = 0; argv[argc]; argc++) {
-        if(argc >= MAXARG)
-            goto bad;
-        sp -= strlen(argv[argc]) + 1;
+    loop {
+        if argv[argc].is_none() {
+            break
+        }
+        let curr_argv = argv[argc].unwrap();
+
+        if argc >= MAXARG {
+            return goto_bad(Some(page_table), sz, Some(ip));;
+        }
+
+        sp -= strlen(curr_argv) + 1;
         sp -= sp % 16; // riscv sp must be 16-byte aligned
-        if(sp < stackbase)
-            goto bad;
-        if(copyout(pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
-            goto bad;
+        if sp < stackbase {
+            return goto_bad(Some(page_table), sz, Some(ip));;
+        }
+
+        if copyout(page_table, sp, curr_argv.as_ptr(), strlen(curr_argv) + 1) < 0 {
+            return goto_bad(Some(page_table), sz, Some(ip));;
+        }
         ustack[argc] = sp;
     }
+
     ustack[argc] = 0;
 
     // push the array of argv[] pointers.
-    sp -= (argc+1) * sizeof(uint64);
+    sp -= (argc+1) * mem::size_of::<u64>();
     sp -= sp % 16;
-    if(sp < stackbase)
-        goto bad;
-    if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
-        goto bad;
+    if sp < stackbase {
+        return goto_bad(Some(page_table), sz, Some(ip));;
+    }
+    if copyout(page_table, sp, &ustack as *const usize as *const u8, (argc+1)*mem::size_of::<u64>()) < 0 {
+        return goto_bad(Some(page_table), sz, Some(ip));;
+    }
 
     // arguments to user main(argc, argv)
     // argc is returned via the system call return
     // value, which goes in a0.
-    p->trapframe->a1 = sp;
+    let tf = unsafe { p.trapframe.unwrap().as_mut().unwrap() };
+    tf.a1 = sp as u64;
 
     // Save program name for debugging.
-    for(last=s=path; *s; s++)
-        if(*s == '/')
-            last = s+1;
-    safestrcpy(p->name, last, sizeof(p->name));
+    p.name = path;
 
     // Commit to the user image.
-    oldpagetable = p->pagetable;
-    p->pagetable = pagetable;
-    p->sz = sz;
-    p->trapframe->epc = elf.entry;  // initial program counter = main
-    p->trapframe->sp = sp; // initial stack pointer
+    let oldpagetable = unsafe { p.pagetable.unwrap().as_mut().unwrap() };
+    p.pagetable = Some(page_table as *mut PageTable);
+    p.sz = sz;
+    tf.epc = elf.entry;  // initial program counter = main
+    tf.sp = sp as u64; // initial stack pointer
     proc_freepagetable(oldpagetable, oldsz);
 
-    return argc; // this ends up in a0, the first argument to main(argc, argv)
+    return argc as i32; // this ends up in a0, the first argument to main(argc, argv)
+}
 
-    bad:
-        if(pagetable)
-            proc_freepagetable(pagetable, sz);
-        if(ip){
-            iunlockput(ip);
-            end_op();
-        }
+fn goto_bad(page_table: Option<&mut PageTable>, sz: usize, ip: Option<&mut INode>) -> i32 {
+    if page_table.is_none() {
+        proc_freepagetable(page_table.unwrap(), sz);
+    }
+
+    if ip.is_some() {
+        ip.unwrap().iunlockput();
+        end_op();
+    }
+
     return -1;
 }
 
@@ -170,21 +180,26 @@ fn exec(path: &[char; MAXPATH], argv: &[Option<&mut [char]>; MAXARG]) -> i32 {
 // va must be page-aligned
 // and the pages from va to va+sz must already be mapped.
 // Returns 0 on success, -1 on failure.
-fn loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz) -> i32 {
-    uint i, n;
-    uint64 pa;
+fn loadseg(page_table: &mut PageTable, va: u64, ip: &INode, offset: u64, sz: u64) -> i32 {
+    let mut pa = 0;
+    let mut n = 0;
+    for i in (0..sz).step_by(PGSIZE) {
+        let pa_op = walkaddr(page_table, (va + i) as usize);
+        if pa_op.is_none() {
+            panic!("loadseg: address should exist");
+        }
+        pa = pa_op.unwrap();
 
-    for(i = 0; i < sz; i += PGSIZE){
-    pa = walkaddr(pagetable, va + i);
-    if(pa == 0)
-    panic("loadseg: address should exist");
-    if(sz - i < PGSIZE)
-    n = sz - i;
-    else
-    n = PGSIZE;
-    if(readi(ip, 0, (uint64)pa, offset+i, n) != n)
-    return -1;
-}
+        if sz - i < PGSIZE as u64 {
+            n = (sz - i) as usize;
+        } else {
+            n = PGSIZE;
+        }
 
-return 0;
+        if ip.readi(false, pa as *mut u8, (offset + i) as u32, n) != n {
+            return -1;
+        }
+    }
+
+    return 0;
 }

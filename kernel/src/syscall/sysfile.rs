@@ -1,4 +1,5 @@
 use core::mem;
+use crate::exec::exec;
 use crate::kalloc::KMEM;
 use crate::NELEM;
 use crate::param::{MAXARG, MAXPATH};
@@ -9,12 +10,12 @@ fn sys_exec() -> u64 {
     let mut uarg: usize = 0;
     let uargv = argaddr(1);
 
-    let mut path: [char; MAXPATH] = ['\0'; MAXPATH];
+    let mut path: [u8; MAXPATH] = ['\0' as u8; MAXPATH];
     if(argstr(0, &mut path, MAXPATH) < 0) {
         return u64::MAX;
     }
 
-    let mut argv: [Option<&mut [char]>; MAXARG] = [None; MAXARG];
+    let mut argv: [Option<&mut [u8]>; MAXARG] = [None; MAXARG];
     let mut i = 0;
     let mut bad = false;
     loop {
@@ -33,7 +34,7 @@ fn sys_exec() -> u64 {
             break;
         }
 
-        argv[i] = unsafe { Some(KMEM.kalloc() as &mut [char]) };
+        argv[i] = unsafe { Some(KMEM.kalloc() as &mut [u8]) };
         if argv[i] == None {
             bad = true;
             break
@@ -49,7 +50,7 @@ fn sys_exec() -> u64 {
 
     let mut ret = -1;
     if !bad {
-        ret = exec(path, argv);
+        ret = exec(&path, &argv);
     }
 
     for i in 0..argv {
@@ -60,5 +61,5 @@ fn sys_exec() -> u64 {
         unsafe { KMEM.kfree(argv[i].unwrap()) }
     }
 
-    return ret;
+    return ret as u64;
 }

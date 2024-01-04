@@ -95,7 +95,7 @@ pub struct Trapframe {
     /*  32 */ pub(crate) kernel_hartid: u64,
     // saved kernel tp
     /*  40 */ ra: u64,
-    /*  48 */ sp: u64,
+    /*  48 */ pub(crate) sp: u64,
     /*  56 */ gp: u64,
     /*  64 */ tp: u64,
     /*  72 */ t0: u64,
@@ -153,7 +153,7 @@ pub struct Proc<'a> {
     context: Context, // swtch() here to run process
     ofile: Option<[&'a File<'a>; NOFILE]>, // Open files
     pub(crate) cwd: Option<*mut INode>,           // Current directory
-    name: &'a str,               // Process name (debugging)
+    pub(crate) name: &'a str,               // Process name (debugging)
 }
 
 impl<'a> Proc<'a> {
@@ -407,7 +407,7 @@ pub fn proc_pagetable<'a>(p: &Proc) -> Option<*mut PageTable> {
 
 // Free a process's page table, and free the
 // physical memory it refers to.
-fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
+pub fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
     uvmunmap(pagetable, TRAMPOLINE, 1, false);
     uvmunmap(pagetable, TRAPFRAME, 1, false);
     uvmfree(pagetable, sz);

@@ -12,9 +12,9 @@ pub fn memmove(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
     dst
 }
 
-pub fn strlen(s: &[char]) -> usize {
+pub fn strlen(s: &[u8]) -> usize {
     for i in 0..s.len() {
-        if s[i] == '\0' {
+        if s[i] == '\0' as u8 {
             return i;
         }
     }

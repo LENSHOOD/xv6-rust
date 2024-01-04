@@ -207,7 +207,7 @@ impl INode {
         }
     }
     // Common idiom: unlock, then put.
-    fn iunlockput(self: &mut Self) {
+    pub fn iunlockput(self: &mut Self) {
         self.iunlock();
         self.iput();
     }
