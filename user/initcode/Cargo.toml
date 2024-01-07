@@ -1,12 +1,13 @@
 [package]
-name = "user"
+name = "initcode"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "user"
+name = "initcode"
 path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+kernel = {path = "../../kernel"}

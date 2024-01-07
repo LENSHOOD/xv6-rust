@@ -2,6 +2,6 @@
 name = "xv6-rust"
 members = [
     "kernel",
-    "user",
+    "user/initcode",
     "mkfs",
 ]
