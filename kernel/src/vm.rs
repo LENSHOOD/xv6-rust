@@ -1,3 +1,4 @@
+use core::ptr::null_mut;
 use crate::kalloc::KMEM;
 use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, printf, PTE2PA, PTE_FLAGS, PX};
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
@@ -294,7 +295,7 @@ pub fn uvmalloc(page_table: &mut PageTable, oldsz: usize, newsz: usize, xperm: u
         return oldsz;
     }
 
-    let mut mem;
+    let mut mem: *mut u8 = null_mut();
     let oldsz = PGROUNDUP!(oldsz);
     for a in (0..newsz).step_by(PGSIZE) {
         mem = unsafe { KMEM.kalloc() };
@@ -338,15 +339,15 @@ pub fn uvmclear(page_table: &mut PageTable, va: usize) {
         panic!("uvmclear");
     }
     let pte = pte_op.unwrap();
-    *pte &= !PTE_U;
+    pte.0 &= !PTE_U;
 }
 
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 pub fn copyout(page_table: &mut PageTable, dstva: usize, src: *const u8, len: usize) -> i8 {
-    let va0;
-    let n;
+    let mut va0= 0;
+    let mut n = 0;
     let mut len = len;
     let mut dstva = dstva;
     while len > 0 {
@@ -409,11 +410,11 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: us
     let mut n = 0;
     let mut va0 = 0;
     let mut pa0 = 0;
-    let mut got_null = 0;
+    let mut got_null = false;
     let mut srcva = srcva;
     let mut max = max;
 
-    while got_null == 0 && max > 0 {
+    while !got_null && max > 0 {
         va0 = PGROUNDDOWN!(srcva);
         let pa0_op = walkaddr(page_table, va0);
         if pa0_op.is_none() {
@@ -431,7 +432,7 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: us
             while n > 0 {
                 if *p == '\0' as u8 {
                     *dst = '\0' as u8;
-                    got_null = 1;
+                    got_null = true;
                     break;
                 } else {
                     *dst = *p;

@@ -1,4 +1,6 @@
 use core::mem;
+use core::mem::size_of;
+use core::slice::from_raw_parts;
 use crate::proc::myproc;
 use crate::string::strlen;
 use crate::vm::{copyin, copyinstr};
@@ -13,7 +15,7 @@ pub(super) fn argaddr(n: u8) -> usize {
 // Fetch the nth word-sized system call argument as a null-terminated string.
 // Copies into buf, at most max.
 // Returns string length if OK (including nul), -1 if error.
-pub(super) fn argstr(n: u8, buf: &mut [u8], max: usize) -> i32 {
+pub(super) fn argstr(n: u8, buf: *mut u8, max: usize) -> i32 {
     let addr = argaddr(n);
     return fetchstr(addr, buf, max);
 }
@@ -49,9 +51,9 @@ pub(super) fn fetchaddr(addr: usize, ip: &mut usize) -> i32 {
 
 // Fetch the nul-terminated string at addr from the current process.
 // Returns length of string, not including nul, or -1 for error.
-pub(super) fn fetchstr(addr: usize, buf: &mut [u8], max: usize) -> i32 {
+pub(super) fn fetchstr(addr: usize, buf: *mut u8, max: usize) -> i32 {
     let p = myproc();
-    if unsafe { copyinstr(p.pagetable.unwrap().as_mut().unwrap(), buf.as_mut_ptr(), addr, max) } < 0 {
+    if unsafe { copyinstr(p.pagetable.unwrap().as_mut().unwrap(), buf, addr, max) } < 0 {
         return -1;
     }
     return strlen(buf) as i32;

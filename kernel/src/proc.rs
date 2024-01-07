@@ -153,7 +153,7 @@ pub struct Proc<'a> {
     context: Context, // swtch() here to run process
     ofile: Option<[&'a File<'a>; NOFILE]>, // Open files
     pub(crate) cwd: Option<*mut INode>,           // Current directory
-    pub(crate) name: &'a str,               // Process name (debugging)
+    pub(crate) name: [u8; 16],               // Process name (debugging)
 }
 
 impl<'a> Proc<'a> {
@@ -188,7 +188,7 @@ impl<'a> Proc<'a> {
             },
             ofile: None,
             cwd: None,
-            name: "",
+            name: [0; 16],
         }
     }
 }
@@ -276,7 +276,9 @@ pub fn userinit() {
         p.trapframe.unwrap().as_mut().unwrap().sp = PGSIZE as u64; // user stack pointer
     }
 
-    p.name = "initcode";
+    let mut name = [0; 16];
+    name.copy_from_slice("initcode".as_bytes());
+    p.name = name;
     p.cwd = namei("/").map(|inner| inner as *mut INode);
 
     p.state = RUNNABLE;
@@ -369,7 +371,7 @@ fn freeproc(p: &mut Proc) {
     p.sz = 0;
     p.pid = 0;
     p.parent = None;
-    p.name = "";
+    p.name = [0; 16];
     p.chan = None;
     p.killed = 0;
     p.xstate = 0;

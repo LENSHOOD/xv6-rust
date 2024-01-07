@@ -1,3 +1,5 @@
+use crate::riscv::PGSIZE;
+
 pub fn memset(dst: *mut u8, c: u8, n: usize) -> *mut u8{
     for i in 0..n {
         unsafe {
@@ -12,12 +14,14 @@ pub fn memmove(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
     dst
 }
 
-pub fn strlen(s: &[u8]) -> usize {
-    for i in 0..s.len() {
-        if s[i] == '\0' as u8 {
-            return i;
+pub fn strlen(s: *const u8) -> usize {
+    for i in 0..PGSIZE {
+        unsafe {
+            if *s.add(i) == '\0' as u8 {
+                return i;
+            }
         }
     }
 
-    return s.len()
+    panic!("too long slice")
 }

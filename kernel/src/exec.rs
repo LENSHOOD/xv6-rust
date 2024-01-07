@@ -1,3 +1,4 @@
+use alloc::string::String;
 use core::mem;
 use crate::elf::{ELF_MAGIC, ELF_PROG_LOAD, ElfHeader, ProgramHeader};
 use crate::file::INode;
@@ -12,16 +13,16 @@ use crate::vm::{copyout, uvmalloc, uvmclear, walkaddr};
 
 fn flags2perm(flags: u32) -> usize {
     let mut perm = 0;
-    if flags & 0x1 {
+    if flags & 0x1 != 0 {
         perm = PTE_X;
     }
-    if flags & 0x2 {
+    if flags & 0x2 != 0 {
         perm |= PTE_W;
     }
     return perm;
 }
 
-pub fn exec(path: &[u8; MAXPATH], argv: &[Option<&mut [u8]>; MAXARG]) -> i32 {
+pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     let p = myproc();
 
     begin_op();
@@ -72,7 +73,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<&mut [u8]>; MAXARG]) -> i32 {
         if ph.vaddr + ph.memsz < ph.vaddr {
             return goto_bad(Some(page_table), sz, Some(ip));;
         }
-        if ph.vaddr % PGSIZE != 0 {
+        if ph.vaddr % PGSIZE as u64 != 0 {
             return goto_bad(Some(page_table), sz, Some(ip));;
         }
 
@@ -85,7 +86,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<&mut [u8]>; MAXARG]) -> i32 {
             return goto_bad(Some(page_table), sz, Some(ip));;
         }
 
-        off += ph_sz;
+        off += ph_sz as u32;
     }
     ip.iunlockput();
     end_op();
@@ -125,7 +126,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<&mut [u8]>; MAXARG]) -> i32 {
             return goto_bad(Some(page_table), sz, Some(ip));;
         }
 
-        if copyout(page_table, sp, curr_argv.as_ptr(), strlen(curr_argv) + 1) < 0 {
+        if copyout(page_table, sp, curr_argv, strlen(curr_argv) + 1) < 0 {
             return goto_bad(Some(page_table), sz, Some(ip));;
         }
         ustack[argc] = sp;
@@ -150,7 +151,9 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<&mut [u8]>; MAXARG]) -> i32 {
     tf.a1 = sp as u64;
 
     // Save program name for debugging.
-    p.name = path;
+    let mut name = [0; 16];
+    name.copy_from_slice(path.as_bytes());
+    p.name = name;
 
     // Commit to the user image.
     let oldpagetable = unsafe { p.pagetable.unwrap().as_mut().unwrap() };
@@ -180,7 +183,7 @@ fn goto_bad(page_table: Option<&mut PageTable>, sz: usize, ip: Option<&mut INode
 // va must be page-aligned
 // and the pages from va to va+sz must already be mapped.
 // Returns 0 on success, -1 on failure.
-fn loadseg(page_table: &mut PageTable, va: u64, ip: &INode, offset: u64, sz: u64) -> i32 {
+fn loadseg(page_table: &mut PageTable, va: u64, ip: &mut INode, offset: u64, sz: u64) -> i32 {
     let mut pa = 0;
     let mut n = 0;
     for i in (0..sz).step_by(PGSIZE) {

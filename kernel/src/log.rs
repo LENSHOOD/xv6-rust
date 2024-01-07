@@ -160,8 +160,8 @@ pub fn log_write(b: &mut Buf) {
 // Copy modified blocks from cache to log.
 unsafe fn write_log() {
     for tail in 0..LOG.lh.n {
-        let to = bread(LOG.dev, LOG.start+tail+1); // log block
-        let from = bread(LOG.dev, LOG.lh.block[tail]); // cache block
+        let to = bread(LOG.dev, LOG.start + tail + 1); // log block
+        let from = bread(LOG.dev, LOG.lh.block[tail as usize]); // cache block
         memmove(&mut to.data as *mut u8, &from.data as *const u8, BSIZE);
         bwrite(to);  // write the log
         brelse(from);
@@ -184,9 +184,9 @@ pub fn begin_op() {
     unsafe {
         LOG.lock.acquire();
         loop {
-            if(LOG.committing){
+            if LOG.committing != 0 {
                 sleep(&LOG, &mut LOG.lock);
-            } else if (LOG.lh.n as usize + (LOG.outstanding+1)*MAXOPBLOCKS) > LOGSIZE {
+            } else if (LOG.lh.n as usize + (LOG.outstanding as usize + 1)*MAXOPBLOCKS) > LOGSIZE {
                 // this op might exhaust log space; wait for commit.
                 sleep(&LOG, &mut LOG.lock);
             } else {
@@ -202,15 +202,15 @@ pub fn begin_op() {
 // commits if this was the last outstanding operation.
 pub fn end_op() {
     unsafe {
-        let mut do_commit = 0;
+        let mut do_commit = false;
 
         LOG.lock.acquire();
         LOG.outstanding -= 1;
-        if LOG.committing {
+        if LOG.committing != 0 {
             panic!("log.committing");
         }
         if LOG.outstanding == 0 {
-            do_commit = 1;
+            do_commit = true;
             LOG.committing = 1;
         } else {
             // begin_op() may be waiting for log space,
