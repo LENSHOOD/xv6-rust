@@ -5,6 +5,7 @@ use crate::sleeplock::Sleeplock;
 use crate::stat::FileType;
 
 pub mod file;
+pub mod fcntl;
 
 #[derive(Copy, Clone)]
 enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
