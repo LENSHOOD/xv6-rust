@@ -69,7 +69,8 @@
 
 use core::cmp::min;
 use core::mem;
-use core::mem::size_of_val;
+use core::mem::{size_of, size_of_val};
+use kernel::stat::FileType;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
 use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
@@ -164,7 +165,7 @@ impl INode {
     }
 
     // Unlock the given inode.
-    fn iunlock(self: &mut Self) {
+    pub(crate) fn iunlock(self: &mut Self) {
         if !self.lock.holding_sleep() || self.ref_cnt < 1 {
             panic!("iunlock");
         }
@@ -179,7 +180,7 @@ impl INode {
     // to it, free the inode (and its content) on disk.
     // All calls to iput() must be inside a transaction in
     // case it has to free the inode.
-    fn iput(self: &mut Self) {
+    pub(crate) fn iput(self: &mut Self) {
         unsafe {
             ITABLE.lock.acquire();
 
@@ -214,7 +215,7 @@ impl INode {
 
     // Truncate inode (discard contents).
     // Caller must hold ip->lock.
-    fn itrunc(self: &mut Self) {
+    pub(crate) fn itrunc(self: &mut Self) {
         for i in 0..NDIRECT {
             if self.addrs[i] != 0 {
                 bfree(self.dev, self.addrs[i]);
@@ -243,7 +244,7 @@ impl INode {
     // Must be called after every change to an ip->xxx field
     // that lives on disk.
     // Caller must hold ip->lock.
-    fn iupdate(self: &mut Self) {
+    pub(crate) fn iupdate(self: &mut Self) {
         let bp = bread(self.dev, unsafe { IBLOCK!(self.inum, SB) });
         let ino_sz = mem::size_of::<DINode>();
         let offset = ino_sz * (self.inum % IPB) as usize;
@@ -359,9 +360,14 @@ pub fn fsinit(dev: u32) {
     }
 }
 
-pub fn namei<'a>(path: &str) -> Option<&'a mut INode> {
+pub(crate) fn namei<'a>(path: &str) -> Option<&'a mut INode> {
     namex(path, false)
 }
+
+pub(crate) fn nameiparent<'a>(path: &str) -> Option<&'a mut INode> {
+    namex(path, false)
+}
+
 
 // Look up and return the inode for a path name.
 // If parent != 0, return the inode for the parent and copy the final
@@ -406,6 +412,32 @@ fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
 
     return Some(ip);
 }
+
+// Allocate an inode on device dev.
+// Mark it as allocated by  giving it type type.
+// Returns an unlocked but allocated and referenced inode,
+// or NULL if there is no free inode.
+pub(crate) fn ialloc<'a>(dev: u32, file_type: FileType) -> Option<&'a mut INode> {
+    int inum;
+    struct buf *bp;
+    struct dinode *dip;
+
+    for(inum = 1; inum < sb.ninodes; inum++){
+        bp = bread(dev, IBLOCK(inum, sb));
+        dip = (struct dinode*)bp->data + inum%IPB;
+        if(dip->type == 0){  // a free inode
+        memset(dip, 0, sizeof(*dip));
+        dip->type = type;
+        log_write(bp);   // mark it allocated on the disk
+        brelse(bp);
+        return iget(dev, inum);
+        }
+        brelse(bp);
+    }
+    printf("ialloc: no inodes\n");
+    return 0;
+}
+
 
 // Find the inode with number inum on device dev
 // and return the in-memory copy. Does not lock
@@ -518,7 +550,7 @@ fn skipelem(path: &str) -> Option<SubPath> {
 
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
-fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
+pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
     if dp.file_type != T_DIR {
         panic!("dirlookup not DIR");
     }
@@ -550,6 +582,42 @@ fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Option<&'a mut I
 
     None
 }
+
+// Write a new directory entry (name, inum) into the directory dp.
+// Returns 0 on success, -1 on failure (e.g. out of disk blocks).
+pub(crate) fn dirlink(dp: &mut INode, name: &str, inum: u16) -> Option<()> {
+    // Check that name is not present.
+    let ip = dirlookup(dp, name, &mut 0);
+    if ip.is_some() {
+        ip?.iput();
+        return None;
+    }
+
+    // Look for an empty dirent.
+    let mut de = &mut Dirent { inum: 0, name: [0; DIRSIZ] };
+    let sz = mem::size_of::<Dirent>();
+    for off in (0..dp.size).step_by(sz) {
+        let tot = dp.readi(false, de as *mut Dirent, off, sz);
+        if tot == 0 {
+            panic!("dirlink read");
+        }
+
+        if de.inum == 0 {
+            break;
+        }
+    }
+
+    strncpy(de.name, name, DIRSIZ);
+    de.inum = inum;
+
+    let tot = dp.writei(false, de as *mut Dirent, off, sz);
+    if tot == 0 {
+       return None
+    }
+
+    return Some(());
+}
+
 
 // Zero a block.
 fn bzero(dev: u32, bno: u32) {

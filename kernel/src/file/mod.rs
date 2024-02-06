@@ -7,18 +7,18 @@ use crate::stat::FileType;
 pub mod file;
 pub mod fcntl;
 
-#[derive(Copy, Clone)]
-enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
+#[derive(Copy, Clone, PartialEq)]
+pub(crate) enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
 #[derive(Copy, Clone)]
 pub struct File<'a> {
-    file_type: FDType,
+    pub(crate) file_type: FDType,
     ref_cnt: i32, // reference count
-    readable: bool,
-    writable: bool,
+    pub(crate) readable: bool,
+    pub(crate) writable: bool,
     pipe: Option<&'a Pipe>, // FD_PIPE
-    ip: Option<&'a INode>, // FD_INODE and FD_DEVICE
-    off: u32, // FD_INODE
-    major: i16, // FD_DEVICE
+    pub(crate) ip: Option<&'a INode>, // FD_INODE and FD_DEVICE
+    pub(crate) off: u32, // FD_INODE
+    pub(crate) major: i16, // FD_DEVICE
 }
 
 impl<'a> File<'a> {
