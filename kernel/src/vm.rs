@@ -350,6 +350,8 @@ pub fn copyout(page_table: &mut PageTable, dstva: usize, src: *const u8, len: us
     let mut n = 0;
     let mut len = len;
     let mut dstva = dstva;
+    let mut src = src;
+
     while len > 0 {
         va0 = PGROUNDDOWN!(dstva);
         let pa0_op = walkaddr(page_table, va0);
@@ -365,7 +367,7 @@ pub fn copyout(page_table: &mut PageTable, dstva: usize, src: *const u8, len: us
         memmove((pa0 + (dstva - va0)) as *mut u8, src, n);
 
         len -= n;
-        unsafe { src.add(n) };
+        unsafe { src = src.add(n) };
         dstva = va0 + PGSIZE;
     }
     return 0;
@@ -380,6 +382,7 @@ pub fn copyin(page_table: &mut PageTable, dst: *mut u8, srcva: usize, len: usize
     let mut pa0 = 0;
     let mut srcva = srcva;
     let mut len = len;
+    let mut dst = dst;
 
     while len > 0 {
         va0 = PGROUNDDOWN!(srcva);
@@ -396,7 +399,7 @@ pub fn copyin(page_table: &mut PageTable, dst: *mut u8, srcva: usize, len: usize
         memmove(dst, (pa0 + (srcva - va0)) as *mut u8, n);
 
         len -= n;
-        unsafe { dst.add(n) };
+        unsafe { dst = dst.add(n) };
         srcva = va0 + PGSIZE;
     }
     return 0;
@@ -413,6 +416,7 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: us
     let mut got_null = false;
     let mut srcva = srcva;
     let mut max = max;
+    let mut dst = dst;
 
     while !got_null && max > 0 {
         va0 = PGROUNDDOWN!(srcva);
@@ -427,7 +431,7 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: us
             n = max;
         }
 
-        let p = (pa0 + (srcva - va0)) as *mut u8;
+        let mut p = (pa0 + (srcva - va0)) as *mut u8;
         unsafe {
             while n > 0 {
                 if *p == '\0' as u8 {
@@ -439,8 +443,8 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: us
                 }
                 n -= 1;
                 max -= 1;
-                let _ = p.add(1);
-                let _ = dst.add(1);
+                p = p.add(1);
+                dst = dst.add(1);
             }
         }
 

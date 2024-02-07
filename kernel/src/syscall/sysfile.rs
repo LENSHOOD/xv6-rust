@@ -5,7 +5,7 @@ use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use crate::file::file::{filealloc, fileclose};
 use crate::file::{File, INode};
 use crate::file::FDType::{FD_DEVICE, FD_INODE};
-use crate::fs::fs::{dirlookup, ialloc, namei, nameiparent};
+use crate::fs::fs::{dirlink, dirlookup, ialloc, namei, nameiparent};
 use crate::kalloc::KMEM;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXARG, MAXPATH, NDEV, NOFILE};
@@ -185,7 +185,7 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
 
     if file_type == T_DIR {  // Create . and .. entries.
         // No ip->nlink++ for ".": avoid cyclic ref count.
-        if dirlink(ip, ".", ip.inum).is_none() || dirlink(ip, "..", dp.inum).is_none() {
+        if dirlink(ip, ".", ip.inum as u16).is_none() || dirlink(ip, "..", dp.inum as u16).is_none() {
             // something went wrong. de-allocate ip.
             ip.nlink = 0;
             ip.iupdate();
@@ -195,7 +195,7 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
         }
     }
 
-    if dirlink(dp, "", ip.inum).is_none() {
+    if dirlink(dp, "", ip.inum as u16).is_none() {
         // something went wrong. de-allocate ip.
         ip.nlink = 0;
         ip.iupdate();

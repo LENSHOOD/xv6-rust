@@ -70,15 +70,15 @@
 use core::cmp::min;
 use core::mem;
 use core::mem::{size_of, size_of_val};
-use kernel::stat::FileType;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
+use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
 use crate::{BBLOCK, IBLOCK, printf};
 use crate::log::{initlog, log_write};
 use crate::param::{NINODE, ROOTDEV};
-use crate::proc::{either_copyout, myproc};
+use crate::proc::{either_copyin, either_copyout, myproc};
 use crate::spinlock::Spinlock;
+use crate::stat::FileType;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
 use crate::string::memset;
 
@@ -318,7 +318,7 @@ impl INode {
     // Caller must hold ip->lock.
     // If user_dst==1, then dst is a user virtual address;
     // otherwise, dst is a kernel address.
-    pub fn readi<T>(self: &mut Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
+    pub(crate) fn readi<T>(self: &mut Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
         let mut n = n as u32;
         if off > self.size || off + n < off {
             return 0;
@@ -329,7 +329,12 @@ impl INode {
         }
 
         let mut tot = 0;
+        let mut off = off;
+        let mut dst = dst;
         loop {
+            if tot >= n {
+                break;
+            }
             let addr = self.bmap(off/ BSIZE as u32);
             if addr == 0 {
                 break;
@@ -337,16 +342,77 @@ impl INode {
 
             let bp = bread(self.dev, addr);
             let m = min(n - tot, (BSIZE - off as usize % BSIZE) as u32);
-            if either_copyout(is_user_dst, dst as *mut u8, &bp.data[off as usize % BSIZE] as *const u8, m as usize).is_err() {
+            if either_copyout(is_user_dst, dst as *mut u8, &bp.data[off as usize % BSIZE] as *const u8, m as usize) == -1 {
                 brelse(bp);
                 tot = 0;
                 break;
             }
             brelse(bp);
+
+            tot += m;
+            off += m;
+            dst = unsafe { dst.add(m as usize) };
         }
 
         return tot as usize;
     }
+
+    // Write data to inode.
+    // Caller must hold ip->lock.
+    // If user_src==1, then src is a user virtual address;
+    // otherwise, src is a kernel address.
+    // Returns the number of bytes successfully written.
+    // If the return value is less than the requested n,
+    // there was an error of some kind.
+    pub(crate) fn writei<T>(self: &mut Self, is_user_src: bool, src: *mut T, off: u32, n: usize) -> isize {
+        let n = n as u32;
+        if off > self.size || (off + n) < off {
+            return -1;
+        }
+
+        if off + n > (MAXFILE * BSIZE) as u32 {
+            return -1;
+        }
+
+        let mut tot = 0;
+        let mut off = off;
+        let mut src = src;
+        loop {
+            if tot >= n {
+                break;
+            }
+
+            let addr = self.bmap(off / BSIZE as u32);
+            if addr == 0 {
+                break;
+            }
+
+            let bp = bread(self.dev, addr);
+            let m = min(n - tot, (BSIZE - off as usize % BSIZE) as u32);
+            if either_copyin(&bp.data[off as usize % BSIZE] as *const u8, is_user_src, src as *const u8, m) == -1 {
+                brelse(bp);
+                break;
+            }
+            log_write(bp);
+            brelse(bp);
+
+            tot += m;
+            off += m;
+            src = unsafe { src.add(m as usize) };
+        }
+
+        if off > self.size {
+            self.size = off;
+        }
+
+        // write the i-node back to disk even if the size didn't change
+        // because the loop above might have called bmap() and added a new
+        // block to ip->addrs[].
+        self.iupdate();
+
+        return tot as isize;
+    }
+
 }
 
 // Init fs
@@ -418,24 +484,24 @@ fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
 // Returns an unlocked but allocated and referenced inode,
 // or NULL if there is no free inode.
 pub(crate) fn ialloc<'a>(dev: u32, file_type: FileType) -> Option<&'a mut INode> {
-    int inum;
-    struct buf *bp;
-    struct dinode *dip;
-
-    for(inum = 1; inum < sb.ninodes; inum++){
-        bp = bread(dev, IBLOCK(inum, sb));
-        dip = (struct dinode*)bp->data + inum%IPB;
-        if(dip->type == 0){  // a free inode
-        memset(dip, 0, sizeof(*dip));
-        dip->type = type;
-        log_write(bp);   // mark it allocated on the disk
-        brelse(bp);
-        return iget(dev, inum);
+    for inum in 0..unsafe { SB.ninodes } {
+        let bp = bread(dev, unsafe { IBLOCK!(inum, SB) });
+        let (_head, body, _tail) = unsafe {
+            let ino_sz = mem::size_of::<DINode>();
+            bp.data[ino_sz * (inum % IPB) as usize..ino_sz * ((inum + 1) % IPB) as usize].align_to_mut::<DINode>()
+        };
+        let dip = &mut body[0];
+        if dip.file_type == NO_TYPE {
+            memset(dip as *mut DINode as *mut u8, 0, mem::size_of::<DINode>());
+            dip.file_type = file_type;
+            log_write(bp);
+            brelse(bp);
+            return Some(iget(dev, inum));
         }
         brelse(bp);
     }
-    printf("ialloc: no inodes\n");
-    return 0;
+    printf!("ialloc: no inodes\n");
+    return None;
 }
 
 
@@ -596,22 +662,28 @@ pub(crate) fn dirlink(dp: &mut INode, name: &str, inum: u16) -> Option<()> {
     // Look for an empty dirent.
     let mut de = &mut Dirent { inum: 0, name: [0; DIRSIZ] };
     let sz = mem::size_of::<Dirent>();
-    for off in (0..dp.size).step_by(sz) {
-        let tot = dp.readi(false, de as *mut Dirent, off, sz);
-        if tot == 0 {
+    let mut off = 0;
+    loop {
+        if off >= dp.size {
+            break;
+        }
+
+        if dp.readi(false, de as *mut Dirent, off, sz) == 0 {
             panic!("dirlink read");
         }
 
         if de.inum == 0 {
             break;
         }
+
+        off += sz as u32;
     }
 
-    strncpy(de.name, name, DIRSIZ);
+    // Why need to copy de.name to name?
+    // strncpy(de.name, name, DIRSIZ);
     de.inum = inum;
 
-    let tot = dp.writei(false, de as *mut Dirent, off, sz);
-    if tot == 0 {
+    if dp.writei(false, de as *mut Dirent, off, sz) == 0 {
        return None
     }
 

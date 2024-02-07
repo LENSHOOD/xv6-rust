@@ -33,12 +33,12 @@ const MAXFILE: usize = NDIRECT + NINDIRECT;
 
 // On-disk inode structure
 struct DINode {
-    file_type: FileType, // File type
-    major: i16, // Major device number (T_DEVICE only)
-    minor: i16, // Minor device number (T_DEVICE only)
-    nlink: i16, // Number of links to inode in file system
-    size: u32, // Size of file (bytes)
-    addrs: [u32; NDIRECT + 1], // Data block addresses
+    pub(crate) file_type: FileType, // File type
+    pub(crate) major: i16, // Major device number (T_DEVICE only)
+    pub(crate) minor: i16, // Minor device number (T_DEVICE only)
+    pub(crate) nlink: i16, // Number of links to inode in file system
+    pub(crate) size: u32, // Size of file (bytes)
+    pub(crate) addrs: [u32; NDIRECT + 1], // Data block addresses
 }
 
 // Inodes per block.

@@ -13,7 +13,7 @@ use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
-use crate::vm::{kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
+use crate::vm::{copyin, copyout, kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
 
 // Saved registers for kernel context switches.
 #[repr(C)]
@@ -418,16 +418,29 @@ pub fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
-pub fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, len: usize) -> Result<(), Error>{
+pub(crate) fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, len: usize) -> i8 {
     let p = myproc();
     if is_user_dst {
-        todo!()
-        // return copyout(p->pagetable, dst, src, len);
+        copyout(unsafe { p.pagetable.unwrap().as_mut().unwrap() }, dst.expose_addr(), src, len)
     } else {
         memmove(dst, src, len);
-        return Ok(());
+        return 0;
     }
 }
+
+// Copy from either a user address, or kernel address,
+// depending on usr_src.
+// Returns 0 on success, -1 on error.
+pub(crate) fn either_copyin(dst: *mut u8, is_user_src: bool, src: *const u8, len: usize) -> i8 {
+    let p = myproc();
+    if is_user_src {
+        copyin(unsafe { p.pagetable.unwrap().as_mut().unwrap() }, dst, src.expose_addr(), len)
+    } else {
+        memmove(dst, src, len);
+        return 0;
+    }
+}
+
 
 // Wake up all processes sleeping on chan.
 // Must be called without any p->lock.
