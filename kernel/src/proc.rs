@@ -444,7 +444,7 @@ pub(crate) fn either_copyin(dst: *mut u8, is_user_src: bool, src: *const u8, len
 
 // Wake up all processes sleeping on chan.
 // Must be called without any p->lock.
-pub fn wakeup<T>(chan: &T) {
+pub(crate) fn wakeup<T>(chan: &T) {
     for p in unsafe { &mut PROCS } {
         if p as *const Proc != myproc() as *const Proc {
             p.lock.acquire();

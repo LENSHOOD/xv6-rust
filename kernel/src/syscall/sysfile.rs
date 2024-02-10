@@ -1,5 +1,4 @@
 use core::mem;
-use kernel::file::fcntl::O_WRONLY;
 use crate::exec::exec;
 use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use crate::file::file::{filealloc, fileclose};

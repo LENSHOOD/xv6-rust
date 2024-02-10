@@ -19,7 +19,7 @@ pub fn fileinit() {
 }
 
 // Allocate a file structure.
-pub fn filealloc<'a>() -> Option<&'a mut File> {
+pub fn filealloc<'a>() -> Option<&'a mut File<'a>> {
     unsafe {
         FTABLE.lock.acquire();
         for f in &mut FTABLE.file {
@@ -59,7 +59,7 @@ pub(crate) fn fileclose(f: &mut File) {
         FTABLE.lock.release();
 
         if file_type == FD_PIPE {
-            pipeclose(pipe, writable);
+            pipe.unwrap().close(writable);
         } else if file_type == FD_INODE || file_type == FD_DEVICE {
             begin_op();
             ip.unwrap().iput();
