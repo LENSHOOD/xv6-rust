@@ -99,7 +99,7 @@ fn sys_open() -> Option<usize> {
             return None;
         }
 
-        let ip = ip?;
+        let ip = ip.as_mut()?;
         ip.ilock();
         if ip.file_type == T_DIR && omode != O_RDONLY {
             ip.iunlockput();
@@ -216,7 +216,7 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
 
 // Allocate a file descriptor for the given file.
 // Takes over file reference from caller on success.
-fn fdalloc(f: &File) -> Option<usize> {
+fn fdalloc(f: *mut File) -> Option<usize> {
     let p = myproc();
 
     for fd in 0..NOFILE {

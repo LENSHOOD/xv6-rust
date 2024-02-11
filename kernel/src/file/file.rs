@@ -4,9 +4,9 @@ use crate::log::{begin_op, end_op};
 use crate::param::NFILE;
 use crate::spinlock::Spinlock;
 
-struct FTable<'a> {
+struct FTable {
     lock: Spinlock,
-    file: [File<'a>; NFILE]
+    file: [File; NFILE]
 }
 
 static mut FTABLE: FTable = FTable {
@@ -19,7 +19,7 @@ pub fn fileinit() {
 }
 
 // Allocate a file structure.
-pub fn filealloc<'a>() -> Option<&'a mut File<'a>> {
+pub fn filealloc() -> Option<&'static mut File> {
     unsafe {
         FTABLE.lock.acquire();
         for f in &mut FTABLE.file {
@@ -59,10 +59,10 @@ pub(crate) fn fileclose(f: &mut File) {
         FTABLE.lock.release();
 
         if file_type == FD_PIPE {
-            pipe.unwrap().close(writable);
+            pipe.unwrap().as_mut().unwrap().close(writable);
         } else if file_type == FD_INODE || file_type == FD_DEVICE {
             begin_op();
-            ip.unwrap().iput();
+            ip.unwrap().as_mut().unwrap().iput();
             end_op();
         }
     }

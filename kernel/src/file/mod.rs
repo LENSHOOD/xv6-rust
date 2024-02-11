@@ -10,18 +10,18 @@ pub mod fcntl;
 #[derive(Copy, Clone, PartialEq)]
 pub(crate) enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
 #[derive(Copy, Clone)]
-pub struct File<'a> {
+pub struct File {
     pub(crate) file_type: FDType,
     ref_cnt: i32, // reference count
     pub(crate) readable: bool,
     pub(crate) writable: bool,
-    pipe: Option<&'a Pipe>, // FD_PIPE
-    pub(crate) ip: Option<&'a INode>, // FD_INODE and FD_DEVICE
+    pipe: Option<*mut Pipe>, // FD_PIPE
+    pub(crate) ip: Option<*mut INode>, // FD_INODE and FD_DEVICE
     pub(crate) off: u32, // FD_INODE
     pub(crate) major: i16, // FD_DEVICE
 }
 
-impl<'a> File<'a> {
+impl File {
     pub const fn create() -> Self {
         Self {
             file_type: FDType::FD_NONE,

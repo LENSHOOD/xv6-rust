@@ -3,7 +3,6 @@ use crate::proc::wakeup;
 use crate::spinlock::Spinlock;
 
 const PIPESIZE: usize = 512;
-
 pub struct Pipe {
     lock: Spinlock,
     data: [u8; PIPESIZE],

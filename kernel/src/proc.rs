@@ -151,7 +151,7 @@ pub struct Proc<'a> {
     pub(crate) pagetable: Option<*mut PageTable>, // User page table
     pub(crate) trapframe: Option<*mut Trapframe>, // data page for trampoline.S
     context: Context, // swtch() here to run process
-    pub(crate) ofile: [Option<&'a File<'a>>; NOFILE], // Open files
+    pub(crate) ofile: [Option<*mut File>; NOFILE], // Open files
     pub(crate) cwd: Option<*mut INode>,           // Current directory
     pub(crate) name: [u8; 16],               // Process name (debugging)
 }

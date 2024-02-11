@@ -389,7 +389,7 @@ impl INode {
 
             let bp = bread(self.dev, addr);
             let m = min(n - tot, (BSIZE - off as usize % BSIZE) as u32);
-            if either_copyin(&bp.data[off as usize % BSIZE] as *const u8, is_user_src, src as *const u8, m) == -1 {
+            if either_copyin(&mut bp.data[off as usize % BSIZE] as *mut u8, is_user_src, src as *const u8, m as usize) == -1 {
                 brelse(bp);
                 break;
             }
