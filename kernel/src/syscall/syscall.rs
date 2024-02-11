@@ -1,6 +1,4 @@
 use core::mem;
-use core::mem::size_of;
-use core::slice::from_raw_parts;
 use crate::proc::myproc;
 use crate::string::strlen;
 use crate::vm::{copyin, copyinstr};

@@ -69,7 +69,7 @@
 
 use core::cmp::min;
 use core::mem;
-use core::mem::{size_of, size_of_val};
+use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
 use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
@@ -443,7 +443,7 @@ fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
     let mut ip = if path == "/" {
         iget(ROOTDEV, ROOTINO)
     } else {
-        let mut inode = myproc().cwd?;
+        let inode = myproc().cwd?;
         unsafe { inode.as_mut()?.idup() }
     };
 
@@ -460,14 +460,16 @@ fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
             return Some(ip);
         }
 
-        if let next = dirlookup(ip, p.name, &mut 0) {
-            if next.is_none() {
-                ip.iunlockput();
-                return None;
-            }
+        match dirlookup(ip, p.name, &mut 0) {
+            next => {
+                if next.is_none() {
+                    ip.iunlockput();
+                    return None;
+                }
 
-            ip.iunlockput();
-            ip = next.unwrap();
+                ip.iunlockput();
+                ip = next.unwrap();
+            }
         }
 
         if nameiparent {
@@ -660,7 +662,7 @@ pub(crate) fn dirlink(dp: &mut INode, name: &str, inum: u16) -> Option<()> {
     }
 
     // Look for an empty dirent.
-    let mut de = &mut Dirent { inum: 0, name: [0; DIRSIZ] };
+    let de = &mut Dirent { inum: 0, name: [0; DIRSIZ] };
     let sz = mem::size_of::<Dirent>();
     let mut off = 0;
     loop {

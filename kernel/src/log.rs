@@ -110,7 +110,7 @@ unsafe fn install_trans(recovering: bool) {
 unsafe fn write_head() {
     let buf = bread(LOG.dev, LOG.start);
     let (_head, body, _tail) = buf.data[0..mem::size_of::<LogHeader>()].align_to_mut::<LogHeader>();
-    let mut hb = &mut body[0];
+    let hb = &mut body[0];
     hb.n = LOG.lh.n;
     for i in 0..LOG.lh.n as usize {
         hb.block[i] = LOG.lh.block[i];

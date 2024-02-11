@@ -1,4 +1,3 @@
-use alloc::string::String;
 use core::mem;
 use crate::elf::{ELF_MAGIC, ELF_PROG_LOAD, ElfHeader, ProgramHeader};
 use crate::file::INode;
@@ -41,16 +40,16 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     let mut elf = ElfHeader::create();
     let tot = ip.readi(false, &mut elf, 0, mem::size_of::<ElfHeader>());
     if tot != mem::size_of::<ElfHeader>() {
-        return goto_bad(None, 0, Some(ip));;
+        return goto_bad(None, 0, Some(ip));
     }
 
     if elf.magic != ELF_MAGIC {
-        return goto_bad(None, 0, Some(ip));;
+        return goto_bad(None, 0, Some(ip));
     }
 
     let mut page_table_op = proc_pagetable(p);
     if page_table_op.is_none() {
-        return goto_bad(None, 0, Some(ip));;
+        return goto_bad(None, 0, Some(ip));
     }
     let page_table = unsafe { page_table_op.unwrap().as_mut().unwrap() };
 
@@ -59,31 +58,31 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     let mut ph = ProgramHeader::create();
     let ph_sz = mem::size_of::<ProgramHeader>();
     let mut sz = 0;
-    for i in 0..elf.phnum {
+    for _i in 0..elf.phnum {
         let tot = ip.readi(false, &mut ph, off, ph_sz);
         if tot != ph_sz {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
         if ph.hdr_type != ELF_PROG_LOAD {
             continue;
         }
         if ph.memsz < ph.filesz {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
         if ph.vaddr + ph.memsz < ph.vaddr {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
         if ph.vaddr % PGSIZE as u64 != 0 {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
 
         let sz1 = uvmalloc(page_table, sz, (ph.vaddr + ph.memsz) as usize, flags2perm(ph.flags));
         if sz1 == 0 {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
         sz = sz1;
         if loadseg(page_table, ph.vaddr, ip, ph.off, ph.filesz) < 0 {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
 
         off += ph_sz as u32;
@@ -117,17 +116,17 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
         let curr_argv = argv[argc].unwrap();
 
         if argc >= MAXARG {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
 
         sp -= strlen(curr_argv) + 1;
         sp -= sp % 16; // riscv sp must be 16-byte aligned
         if sp < stackbase {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
 
         if copyout(page_table, sp, curr_argv, strlen(curr_argv) + 1) < 0 {
-            return goto_bad(Some(page_table), sz, Some(ip));;
+            return goto_bad(Some(page_table), sz, Some(ip));
         }
         ustack[argc] = sp;
     }
@@ -138,10 +137,10 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     sp -= (argc+1) * mem::size_of::<u64>();
     sp -= sp % 16;
     if sp < stackbase {
-        return goto_bad(Some(page_table), sz, Some(ip));;
+        return goto_bad(Some(page_table), sz, Some(ip));
     }
     if copyout(page_table, sp, &ustack as *const usize as *const u8, (argc+1)*mem::size_of::<u64>()) < 0 {
-        return goto_bad(Some(page_table), sz, Some(ip));;
+        return goto_bad(Some(page_table), sz, Some(ip));
     }
 
     // arguments to user main(argc, argv)

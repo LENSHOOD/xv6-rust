@@ -82,7 +82,7 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
         loop {
             let head_ptr = BCACHE.head.as_ptr();
             let head = *head_ptr;
-            let mut b_ptr = head.next.unwrap().as_ptr();
+            let b_ptr = head.next.unwrap().as_ptr();
             if b_ptr == head_ptr {
                 break;
             }
@@ -103,7 +103,7 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
         loop {
             let head_ptr = BCACHE.head.as_ptr();
             let head = *head_ptr;
-            let mut b_ptr = head.prev.unwrap().as_ptr();
+            let b_ptr = head.prev.unwrap().as_ptr();
             if b_ptr == head_ptr {
                 break;
             }

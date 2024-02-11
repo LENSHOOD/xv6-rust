@@ -1,4 +1,4 @@
-use crate::kalloc::{KMEM, KMem};
+use crate::kalloc::KMEM;
 use crate::proc::wakeup;
 use crate::spinlock::Spinlock;
 
