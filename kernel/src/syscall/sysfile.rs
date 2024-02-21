@@ -153,6 +153,31 @@ fn sys_open() -> Option<usize> {
     return fd;
 }
 
+pub fn sys_mknod() -> i64 {
+    begin_op();
+    let major = argint(1)  as i16;
+    let minor = argint(2)  as i16;
+
+    let mut path = [0; MAXPATH];
+
+    if (argstr(0, &mut path as *mut u8, MAXPATH)) < 0 {
+        end_op();
+        return -1;
+    }
+
+    let path_str = unsafe { core::str::from_utf8_unchecked(&path) };
+    let ip = create(path_str, T_DEVICE, major, minor);
+    if ip.is_none() {
+        end_op();
+        return -1;
+    }
+
+    ip.unwrap().iunlockput();
+    end_op();
+    return 0;
+}
+
+
 fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option<&'a mut INode> {
     let dp = nameiparent(path)?;
     dp.ilock();
