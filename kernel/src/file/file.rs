@@ -35,6 +35,20 @@ pub fn filealloc() -> Option<&'static mut File> {
     }
 }
 
+// Increment ref count for file f.
+pub(crate) fn filedup(f: *mut File) {
+    unsafe {
+        FTABLE.lock.acquire();
+        let f = f.as_mut().unwrap();
+        if f.ref_cnt < 1 {
+            panic!("filedup")
+        }
+
+        f.ref_cnt += 1;
+        FTABLE.lock.release();
+    }
+}
+
 // Close file f.  (Decrement ref count, close when reaches 0.)
 pub(crate) fn fileclose(f: &mut File) {
     unsafe {

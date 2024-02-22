@@ -11,10 +11,9 @@ pub(super) fn argaddr(n: u8) -> usize {
 }
 
 // Fetch the nth 32-bit system call argument.
-pub(super) fn argint(n: u8) -> u64 {
-    return argraw(n);
+pub(super) fn argint(n: u8) -> i32 {
+    return argraw(n) as i32;
 }
-
 
 // Fetch the nth word-sized system call argument as a null-terminated string.
 // Copies into buf, at most max.

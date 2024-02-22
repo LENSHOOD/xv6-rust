@@ -1,7 +1,7 @@
 use core::mem;
 use crate::exec::exec;
 use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
-use crate::file::file::{filealloc, fileclose};
+use crate::file::file::{filealloc, filedup, fileclose};
 use crate::file::{File, INode};
 use crate::file::FDType::{FD_DEVICE, FD_INODE};
 use crate::fs::fs::{dirlink, dirlookup, ialloc, namei, nameiparent};
@@ -76,7 +76,7 @@ fn sys_exec() -> u64 {
 
 fn sys_open() -> Option<usize> {
     let mut path: [u8; MAXPATH] = ['\0' as u8; MAXPATH];
-    let omode = argint(1);
+    let omode = argint(1) as u64;
     let n = argstr(0, &mut path as *mut u8, MAXPATH);
     if n < 0 {
         return None;
@@ -153,7 +153,7 @@ fn sys_open() -> Option<usize> {
     return fd;
 }
 
-pub fn sys_mknod() -> i64 {
+pub(crate) fn sys_mknod() -> i64 {
     begin_op();
     let major = argint(1)  as i16;
     let minor = argint(2)  as i16;
@@ -252,4 +252,35 @@ fn fdalloc(f: *mut File) -> Option<usize> {
     }
 
     return None;
+}
+
+// Fetch the nth word-sized system call argument as a file descriptor
+// and return both the descriptor and the corresponding struct file.
+fn argfd(n: u8) -> Option<(usize, *mut File)> {
+    let fd = argint(n);
+    if fd < 0 || fd as usize >= NOFILE {
+        return None;
+    }
+
+    let fd = fd as usize;
+    let f = myproc().ofile[fd]?;
+
+    Some((fd, f))
+}
+
+pub(crate) fn sys_dup() -> i64 {
+    let fd_file = argfd(0);
+    if fd_file.is_none() {
+        return -1;
+    }
+
+    let f = fd_file.unwrap().1;
+    let fd = fdalloc(f);
+    if fd.is_none() {
+        return -1;
+    }
+
+    filedup(f);
+
+    return fd.unwrap() as i64;
 }
