@@ -127,22 +127,22 @@ pub struct Trapframe {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-enum Procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }
+pub(crate) enum Procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }
 
 // Per-process state
 #[derive(Copy, Clone)]
 pub struct Proc<'a> {
-    lock: Spinlock,
+    pub(crate) lock: Spinlock,
 
     // p->lock must be held when using these:
-    state: Procstate, // Process state
+    pub(crate) state: Procstate, // Process state
     chan: Option<*const u8>, // If non-zero, sleeping on chan
     killed: u8, // If non-zero, have been killed
     xstate: u8, // Exit status to be returned to parent's wait
     pub pid: u32,                     // Process ID
 
     // wait_lock must be held when using this:
-    parent: Option<&'a Proc<'a>>,         // Parent process
+    pub(crate) parent: Option<&'a Proc<'a>>,         // Parent process
 
     // these are private to the process, so p->lock need not be held.
     pub(crate) kstack: usize, // Virtual address of kernel stack
@@ -197,7 +197,7 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 // parents are not lost. helps obey the
 // memory model when using p->parent.
 // must be acquired before any p->lock.
-static mut WAIT_LOCK: Spinlock = Spinlock::init_lock("wait_lock");
+pub(crate) static mut WAIT_LOCK: Spinlock = Spinlock::init_lock("wait_lock");
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -311,7 +311,7 @@ fn forkret() {
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
-fn allocproc() -> Option<&'static mut Proc<'static>> {
+pub(crate) fn allocproc() -> Option<&'static mut Proc<'static>> {
     for p in unsafe { &mut PROCS } {
         p.lock.acquire();
 
@@ -356,7 +356,7 @@ fn inner_alloc<'a>(p: &'a mut Proc<'a>) -> Option<&'a mut Proc<'a>> {
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
-fn freeproc(p: &mut Proc) {
+pub(crate) fn freeproc(p: &mut Proc) {
     if let Some(tf) = p.trapframe {
         unsafe { KMEM.kfree(tf) };
     }

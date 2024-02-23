@@ -1,5 +1,6 @@
 mod sysfile;
 mod syscall;
+mod sysproc;
 
 // System call numbers
 pub const SYS_fork: u8 = 1;
