@@ -2,6 +2,8 @@ use core::mem;
 use crate::file::file::filedup;
 use crate::param::NOFILE;
 use crate::proc::{allocproc, freeproc, myproc, Trapframe};
+use crate::vm::uvmcopy;
+use crate::proc::{Procstate::RUNNABLE, WAIT_LOCK};
 
 pub(crate) fn sys_fork() -> u64 {
     return match fork() {
@@ -19,9 +21,9 @@ fn fork() -> Option<u32> {
     let np = allocproc()?;
 
     // Copy user memory from parent to child.
-    if uvmcopy(p.pagetable, np.pagetable, p.sz) < 0 {
+    if unsafe { uvmcopy(p.pagetable?.as_mut()?, np.pagetable?.as_mut()?, p.sz) } < 0 {
         freeproc(np);
-        &np.lock.release();
+        let _ = &np.lock.release();
         return None;
     }
     np.sz = p.sz;
@@ -34,27 +36,31 @@ fn fork() -> Option<u32> {
     });
 
     // Cause fork to return 0 in the child.
-    unsafe { np.trapframe.unwrap().as_mut().unwrap().a0 = 0; }
+    unsafe { np.trapframe?.as_mut()?.a0 = 0; }
 
     // increment reference counts on open file descriptors.
     for i in 0..NOFILE {
         if p.ofile[i].is_some() {
-            let f = p.ofile[i].unwrap();
+            let f = p.ofile[i]?;
             filedup(f);
             np.ofile[i] = Some(f);
         }
     }
-    np.cwd = idup(p.cwd);
 
-    safestrcpy(np.name, p.name, mem::size_of_val(&p.name));
+    unsafe { p.cwd?.as_mut()?.idup() };
+    np.cwd = p.cwd;
+
+    np.name.copy_from_slice(&p.name);
 
     let pid = np.pid;
 
     np.lock.release();
 
-    WAIT_LOCK.acquire();
-    np.parent = Some(p);
-    WAIT_LOCK.release();
+    unsafe {
+        WAIT_LOCK.acquire();
+        np.parent = Some(p);
+        WAIT_LOCK.release();
+    }
 
     np.lock.acquire();
     np.state = RUNNABLE;

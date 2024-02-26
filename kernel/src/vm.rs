@@ -331,6 +331,44 @@ pub fn uvmdealloc(page_table: &mut PageTable, oldsz: usize, newsz: usize) -> usi
     return newsz;
 }
 
+// Given a parent process's page table, copy
+// its memory into a child's page table.
+// Copies both the page table and the
+// physical memory.
+// returns 0 on success, -1 on failure.
+// frees any allocated pages on failure.
+pub(crate) fn uvmcopy(old: &mut PageTable, new: &mut PageTable, sz: usize) -> i8 {
+    for i in (0..sz).step_by(PGSIZE) {
+        let pte_op = walk(old, i, 0);
+        if pte_op.is_none() {
+            panic!("uvmcopy: pte should exist");
+        }
+        let pte = pte_op.unwrap();
+        if pte.0 & PTE_V == 0 {
+            panic!("uvmcopy: page not present");
+        }
+
+        let mem: *mut u8 = unsafe { KMEM.kalloc() };
+        if mem.is_null() {
+            uvmunmap(new, 0, i / PGSIZE, true);
+            return -1;
+        }
+
+        let pa = PTE2PA!(pte.0);
+        memmove(mem, pa as *mut u8, PGSIZE);
+
+        let flags = PTE_FLAGS!(pte.0);
+        if mappages(new, i,  mem.expose_addr(), PGSIZE, flags) != 0 {
+            unsafe { KMEM.kfree(mem) };
+            uvmunmap(new, 0, i / PGSIZE, true);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 pub fn uvmclear(page_table: &mut PageTable, va: usize) {

@@ -121,7 +121,7 @@ impl SuperBlock {
 impl INode {
     // Increment reference count for ip.
     // Returns ip to enable ip = idup(ip1) idiom.
-    fn idup(self: &mut Self) -> &mut Self {
+    pub(crate) fn idup(self: &mut Self) -> &mut Self {
         unsafe {
             ITABLE.lock.acquire();
             self.ref_cnt += 1;
