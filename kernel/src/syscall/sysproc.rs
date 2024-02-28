@@ -3,7 +3,15 @@ use crate::file::file::filedup;
 use crate::param::NOFILE;
 use crate::proc::{allocproc, freeproc, myproc, Trapframe};
 use crate::vm::uvmcopy;
-use crate::proc::{Procstate::RUNNABLE, WAIT_LOCK};
+use crate::proc::{Procstate::RUNNABLE, WAIT_LOCK, exit};
+use crate::syscall::syscall::argint;
+
+pub(crate) fn sys_exit() -> usize {
+    let n = argint(0);
+    exit(n);
+    return 0;  // not reached
+}
+
 
 pub(crate) fn sys_fork() -> u64 {
     return match fork() {

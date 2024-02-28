@@ -1,13 +1,15 @@
-use core::mem;
+use core::{mem, ptr};
 use core::sync::atomic::{AtomicU32, Ordering};
 use crate::file::{File, INode};
+use crate::file::file::fileclose;
 use crate::fs::fs;
 use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
 use crate::KSTACK;
+use crate::log::{begin_op, end_op};
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
-use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED};
+use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED, ZOMBIE};
 use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
@@ -547,4 +549,63 @@ fn sched() {
     let intena = mycpu().intena;
     unsafe { swtch(&p.context, &mycpu().context.unwrap()); }
     mycpu().intena = intena;
+}
+
+// Exit the current process.  Does not return.
+// An exited process remains in the zombie state
+// until its parent calls wait().
+pub(crate) fn exit(status: i32) {
+    let p = myproc();
+
+    if ptr::eq(p, unsafe { *INIT_PROC.as_ref().unwrap().clone() }) {
+        panic!("init exiting");
+    }
+
+    // Close all open files.
+    for fd in 0..NOFILE {
+        if p.ofile[fd].is_some() {
+            let f = p.ofile[fd].unwrap();
+            fileclose(unsafe { f.as_mut().unwrap() });
+            p.ofile[fd] = None;
+        }
+    }
+
+    begin_op();
+    unsafe { p.cwd.unwrap().as_mut().unwrap().iput(); }
+    end_op();
+    p.cwd = None;
+
+    unsafe { &WAIT_LOCK.acquire(); }
+
+    // Give any children to init.
+    reparent(p);
+
+    // Parent might be sleeping in wait().
+    wakeup(p.parent.unwrap());
+
+    p.lock.acquire();
+    p.xstate = status as u8;
+    p.state = ZOMBIE;
+
+    unsafe { &WAIT_LOCK.release(); }
+
+    // Jump into the scheduler, never to return.
+    sched();
+    panic!("zombie exit");
+}
+
+// Pass p's abandoned children to init.
+// Caller must hold wait_lock.
+fn reparent(p: &mut Proc) {
+    unsafe {
+        for i in 0..NPROC {
+            let pp = &mut PROCS[i];
+            if pp.parent.is_some() {
+                if ptr::eq(pp.parent.unwrap(), p) {
+                    pp.parent = Some(&INIT_PROC.as_ref().unwrap());
+                    wakeup(&INIT_PROC);
+                };
+            }
+        }
+    }
 }
