@@ -1,10 +1,10 @@
 use core::mem;
 use crate::file::file::filedup;
 use crate::param::NOFILE;
-use crate::proc::{allocproc, freeproc, myproc, Trapframe};
+use crate::proc::{allocproc, freeproc, myproc, Trapframe, wait};
 use crate::vm::uvmcopy;
 use crate::proc::{Procstate::RUNNABLE, WAIT_LOCK, exit};
-use crate::syscall::syscall::argint;
+use crate::syscall::syscall::{argaddr, argint};
 
 pub(crate) fn sys_exit() -> usize {
     let n = argint(0);
@@ -13,12 +13,18 @@ pub(crate) fn sys_exit() -> usize {
 }
 
 
-pub(crate) fn sys_fork() -> u64 {
+pub(crate) fn sys_fork() -> usize {
     return match fork() {
         Some(pid) => pid,
         None => u32::MAX
-    } as u64
+    } as usize
 }
+
+pub(crate) fn sys_wait() -> usize {
+    let p = argaddr(0);
+    return wait(p) as usize;
+}
+
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.

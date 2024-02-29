@@ -416,6 +416,14 @@ pub fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
     uvmfree(pagetable, sz);
 }
 
+fn killed(p: &mut Proc) -> u8 {
+    p.lock.acquire();
+    let k = p.killed;
+    p.lock.release();
+    return k;
+}
+
+
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
@@ -557,7 +565,7 @@ fn sched() {
 pub(crate) fn exit(status: i32) {
     let p = myproc();
 
-    if ptr::eq(p, unsafe { *INIT_PROC.as_ref().unwrap().clone() }) {
+    if ptr::eq(p, unsafe { *INIT_PROC.as_ref().unwrap() }) {
         panic!("init exiting");
     }
 
@@ -575,7 +583,7 @@ pub(crate) fn exit(status: i32) {
     end_op();
     p.cwd = None;
 
-    unsafe { &WAIT_LOCK.acquire(); }
+    unsafe { WAIT_LOCK.acquire(); }
 
     // Give any children to init.
     reparent(p);
@@ -587,11 +595,63 @@ pub(crate) fn exit(status: i32) {
     p.xstate = status as u8;
     p.state = ZOMBIE;
 
-    unsafe { &WAIT_LOCK.release(); }
+    unsafe { WAIT_LOCK.release(); }
 
     // Jump into the scheduler, never to return.
     sched();
     panic!("zombie exit");
+}
+
+// Wait for a child process to exit and return its pid.
+// Return -1 if this process has no children.
+pub(crate) fn wait(addr: usize) -> i32 {
+    let p = myproc();
+
+    unsafe { WAIT_LOCK.acquire(); }
+
+    let mut havekids = false;
+    loop {
+        for i in 0..NPROC {
+            let pp = unsafe { &mut PROCS[i] };
+            if pp.parent.is_some() && pp.parent.unwrap() as *const Proc == p as *const Proc {
+                // make sure the child isn't still in exit() or swtch().
+                pp.lock.acquire();
+
+                havekids = true;
+                if pp.state == ZOMBIE {
+                    // Found one.
+                    let pid = pp.pid;
+                    if addr != 0 &&
+                        copyout(
+                        unsafe { p.pagetable.unwrap().as_mut().unwrap() },
+                        addr,
+                        &pp.xstate as *const u8,
+                        mem::size_of_val(&pp.xstate)) < 0 {
+
+                        pp.lock.release();
+                        unsafe { WAIT_LOCK.release(); }
+                        return -1;
+                    }
+
+                    freeproc(pp);
+                    pp.lock.release();
+                    unsafe { WAIT_LOCK.release(); }
+                    return pid as i32;
+                }
+
+                pp.lock.release();
+            }
+        }
+
+        // No point waiting if we don't have any children.
+        if !havekids || killed(p) != 0 {
+            unsafe { WAIT_LOCK.release(); }
+            return -1;
+        }
+
+        // Wait for a child to exit.
+        sleep(p, unsafe { &mut WAIT_LOCK });  //DOC: wait-sleep
+    }
 }
 
 // Pass p's abandoned children to init.
