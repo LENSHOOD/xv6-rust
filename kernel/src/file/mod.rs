@@ -96,8 +96,8 @@ pub static mut DEVSW: [Option<&dyn Devsw>; NDEV] = [None; NDEV];
 
 // map major device number to device functions.
 pub trait Devsw {
-    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize);
-    fn write(self: &Self, user_addr: usize, addr: usize, sz: usize);
+    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize) -> i32;
+    fn write(self: &Self, user_addr: usize, addr: usize, sz: usize) -> i32;
 }
 
 pub const CONSOLE: usize = 1;

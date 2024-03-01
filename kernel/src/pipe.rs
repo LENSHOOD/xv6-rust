@@ -1,6 +1,7 @@
 use crate::kalloc::KMEM;
-use crate::proc::wakeup;
+use crate::proc::{myproc, sleep, wakeup, killed};
 use crate::spinlock::Spinlock;
+use crate::vm::copyin;
 
 const PIPESIZE: usize = 512;
 pub struct Pipe {
@@ -28,5 +29,36 @@ impl Pipe {
         } else {
             self.lock.release();
         }
+    }
+
+    pub(crate) fn write(self: &mut Self, addr: usize, n: i32) -> i32 {
+        let pr = myproc();
+
+        self.lock.acquire();
+
+        let mut i = 0;
+        while i < n {
+            if !self.readopen || killed(pr) != 0 {
+                self.lock.release();
+                return -1;
+            }
+
+            if self.nwrite == self.nread + PIPESIZE as u32 { //DOC: pipewrite-full
+                wakeup(&self.nread);
+                sleep(&self.nwrite, &mut self.lock);
+            } else {
+                let mut ch = 0;
+                let pgtbl = unsafe { pr.pagetable.unwrap().as_mut().unwrap() };
+                if copyin(pgtbl, &mut ch as *mut u8, addr + i as usize, 1) == -1 {
+                    break;
+                }
+                self.data[self.nwrite as usize % PIPESIZE] = ch;
+                self.nwrite += 1;
+                i += 1;
+            }
+        }
+        wakeup(&self.nread);
+        self.lock.release();
+        return i;
     }
 }

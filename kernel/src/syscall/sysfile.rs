@@ -1,7 +1,7 @@
 use core::mem;
 use crate::exec::exec;
 use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
-use crate::file::file::{filealloc, filedup, fileclose};
+use crate::file::file::{filealloc, filedup, fileclose, filewrite};
 use crate::file::{File, INode};
 use crate::file::FDType::{FD_DEVICE, FD_INODE};
 use crate::fs::fs::{dirlink, dirlookup, ialloc, namei, nameiparent};
@@ -151,6 +151,18 @@ fn sys_open() -> Option<usize> {
     end_op();
 
     return fd;
+}
+
+pub(crate) fn sys_write() -> i64 {
+    let p = argaddr(1);
+    let n = argint(2);
+    let fd_file = argfd(0);
+    if fd_file.is_none() {
+        return -1;
+    }
+
+    let file = unsafe { fd_file.unwrap().1.as_mut().unwrap() };
+    return filewrite(file, p, n) as i64;
 }
 
 pub(crate) fn sys_mknod() -> i64 {

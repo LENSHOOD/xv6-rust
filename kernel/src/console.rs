@@ -66,11 +66,11 @@ impl Write for Console {
 }
 
 impl Devsw for Console {
-    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize) {
+    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize) -> i32 {
         todo!()
     }
 
-    fn write(self: &Self, user_src: usize, src: usize, n: usize) {
+    fn write(self: &Self, user_src: usize, src: usize, n: usize) -> i32  {
         todo!()
     }
 }

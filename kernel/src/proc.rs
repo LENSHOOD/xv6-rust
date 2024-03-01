@@ -416,7 +416,7 @@ pub fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
     uvmfree(pagetable, sz);
 }
 
-fn killed(p: &mut Proc) -> u8 {
+pub(crate) fn killed(p: &mut Proc) -> u8 {
     p.lock.acquire();
     let k = p.killed;
     p.lock.release();
