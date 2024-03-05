@@ -1,5 +1,6 @@
 use core::fmt::{Error, Write};
 use crate::file::{CONSOLE, Devsw, DEVSW};
+use crate::proc::{either_copyin, either_copyout, killed, myproc, sleep};
 use crate::spinlock::Spinlock;
 use crate::uart::Uart;
 
@@ -29,11 +30,11 @@ impl Console {
             e: 0,
         }
     }
-    pub fn init(self: &'static Self) {
+    pub fn init(self: &'static mut Self) {
 
         // connect read and write system calls
         // to consoleread and consolewrite.
-        unsafe { DEVSW[CONSOLE] = Some(self); }
+        unsafe { DEVSW[CONSOLE] = Some(self as *mut Self); }
 
         Uart::init();
     }
@@ -66,11 +67,74 @@ impl Write for Console {
 }
 
 impl Devsw for Console {
-    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize) -> i32 {
-        todo!()
+    //
+    // user read()s from the console go here.
+    // copy (up to) a whole input line to dst.
+    // user_dist indicates whether dst is a user
+    // or kernel address.
+    //
+    fn read(self: &mut Self, is_user_dst: bool, dst: usize, sz: usize) -> i32 {
+        let mut c = 0;
+        let target = sz;
+        let mut cbuf = 0;
+        let mut dst = dst;
+        let mut sz = sz;
+
+        self.lock.acquire();
+        while sz > 0 {
+            // wait until interrupt handler has put some
+            // input into cons.buffer.
+            while self.r == self.w {
+                if killed(myproc()) != 0 {
+                    self.lock.release();
+                    return -1;
+                }
+                sleep(self, &mut self.lock);
+            }
+
+            self.r += 1;
+            c = self.buf[self.r % INPUT_BUF_SIZE];
+
+            if c as char == 'D' {  // end-of-file
+                if sz < target {
+                    // Save ^D for next time, to make sure
+                    // caller gets a 0-byte result.
+                    self.r -= 1;
+                }
+                break;
+            }
+
+            // copy the input byte to the user-space buffer.
+            cbuf = c;
+            if either_copyout(is_user_dst, dst as *mut u8, &cbuf, 1) == -1 {
+                break;
+            }
+
+            dst += 1;
+            sz -= 1;
+
+            if c as char == '\n' {
+                // a whole line has arrived, return to
+                // the user-level read().
+                break;
+            }
+        }
+        self.lock.release();
+
+        return (target - sz) as i32;
     }
 
-    fn write(self: &Self, user_src: usize, src: usize, n: usize) -> i32  {
-        todo!()
+    fn write(self: &mut Self, is_user_src: bool, src: usize, sz: usize) -> i32  {
+        let mut cnt = 0;
+        for i in 0..sz {
+            let mut c = 0u8;
+            if either_copyin(&mut c as *mut u8, is_user_src, src as *const u8, 1) == -1 {
+                break
+            }
+            self.putc(c as u16);
+            cnt = i;
+        }
+
+        return cnt as i32;
     }
 }

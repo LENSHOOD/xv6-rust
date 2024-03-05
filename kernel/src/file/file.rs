@@ -97,7 +97,7 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
             if f.major < 0 || f.major as usize >= NDEV || unsafe { !DEVSW[f.major as usize].is_none() } {
                 return -1;
             }
-            unsafe { DEVSW[f.major as usize].unwrap().write(1, addr, n as usize) }
+            unsafe { DEVSW[f.major as usize].unwrap().as_mut().unwrap().write(true, addr, n as usize) }
         },
         FD_INODE => {
             // write a few blocks at a time to avoid exceeding

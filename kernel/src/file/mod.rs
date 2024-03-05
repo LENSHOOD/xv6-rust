@@ -92,12 +92,12 @@ impl INode {
     }
 }
 
-pub static mut DEVSW: [Option<&dyn Devsw>; NDEV] = [None; NDEV];
+pub static mut DEVSW: [Option<*mut dyn Devsw>; NDEV] = [None; NDEV];
 
 // map major device number to device functions.
 pub trait Devsw {
-    fn read(self: &Self, user_addr: usize, addr: usize, sz: usize) -> i32;
-    fn write(self: &Self, user_addr: usize, addr: usize, sz: usize) -> i32;
+    fn read(self: &mut Self, is_user_dst: bool, dst: usize, sz: usize) -> i32;
+    fn write(self: &mut Self, is_user_src: bool, src: usize, sz: usize) -> i32;
 }
 
 pub const CONSOLE: usize = 1;
