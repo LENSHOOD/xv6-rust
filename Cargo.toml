@@ -3,5 +3,6 @@ name = "xv6-rust"
 members = [
     "kernel",
     "user/initcode",
+    "user/ulib",
     "mkfs",
 ]

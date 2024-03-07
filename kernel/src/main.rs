@@ -30,7 +30,7 @@ mod pipe;
 mod stat;
 mod virtio;
 mod log;
-mod syscall;
+pub mod syscall;
 mod exec;
 mod elf;
 
