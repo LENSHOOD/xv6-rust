@@ -278,7 +278,7 @@ pub fn userinit() {
     }
 
     let mut name = [0; 16];
-    name.copy_from_slice("initcode".as_bytes());
+    name.copy_from_slice("initcode\0\0\0\0\0\0\0\0".as_bytes());
     p.name = name;
     p.cwd = namei("/").map(|inner| inner as *mut INode);
 
