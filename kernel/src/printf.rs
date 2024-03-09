@@ -1,10 +1,12 @@
 use core::fmt::{Arguments, Write};
 use crate::console::Console;
+use crate::file::CONSOLE;
 use crate::spinlock::Spinlock;
+use crate::uart::CONSOLE_INSTANCE;
 
 pub static mut PRINTER: Printer = Printer {
     lock: Spinlock::init_lock("pr"),
-    console: Console::create(),
+    console: None,
     locking: true,
 };
 
@@ -21,13 +23,15 @@ macro_rules! printf
 /// lock to avoid interleaving concurrent printf's.
 pub struct Printer {
     lock: Spinlock,
-    console: Console,
+    console: Option<&'static mut Console>,
     locking: bool,
 }
 
 impl Printer {
     pub fn init() {
-        unsafe { PRINTER.console.init(); }
+        unsafe {
+            CONSOLE_INSTANCE.init();
+            PRINTER.console = Some(&mut CONSOLE_INSTANCE); }
     }
 
     // Print to the console. only understands %d, %x, %p, %s.
@@ -37,7 +41,7 @@ impl Printer {
             self.lock.acquire();
         }
 
-        let _ = self.console.write_fmt(args);
+        let _ = self.console.as_mut().unwrap().write_fmt(args);
 
         if locking {
             self.lock.release()

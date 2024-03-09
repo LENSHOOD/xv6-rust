@@ -5,7 +5,7 @@ use crate::file::file::fileclose;
 use crate::fs::fs;
 use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
-use crate::KSTACK;
+use crate::{KSTACK, printf};
 use crate::log::{begin_op, end_op};
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
@@ -667,5 +667,30 @@ fn reparent(p: &mut Proc) {
                 };
             }
         }
+    }
+}
+
+// Print a process listing to console.  For debugging.
+// Runs when user types ^P on console.
+// No lock to avoid wedging a stuck machine further.
+pub(crate) fn procdump() {
+    printf!("\n");
+    for i in 0..NPROC {
+        let p = unsafe { &PROCS[i] };
+        if p.state == UNUSED {
+            continue;
+        }
+
+        let state = match p.state {
+            UNUSED => continue,
+            USED => "used",
+            SLEEPING => "sleep ",
+            RUNNABLE => "runble",
+            RUNNING => "run   ",
+            ZOMBIE => "zombie",
+        };
+
+        printf!("{} {} {}", p.pid, state, core::str::from_utf8(&p.name).unwrap());
+        printf!("\n");
     }
 }

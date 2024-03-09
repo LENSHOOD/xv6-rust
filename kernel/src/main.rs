@@ -46,8 +46,11 @@ use crate::riscv::__sync_synchronize;
 // ///////////////////////////////////
 #[no_mangle]
 extern "C" fn eh_personality() {}
+
+pub(crate) static PANICKED: AtomicBool = AtomicBool::new(false);
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
+    PANICKED.store(true, Ordering::Relaxed);
     printf!("Aborting: \n");
     if let Some(p) = info.location() {
         printf!(

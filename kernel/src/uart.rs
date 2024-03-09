@@ -1,5 +1,8 @@
+use core::sync::atomic::Ordering::Relaxed;
+use crate::console::Console;
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::{pop_off, push_off, Spinlock};
+use crate::PANICKED;
 
 // the UART control registers are memory-mapped
 // at address UART0. this macro returns the
@@ -49,6 +52,8 @@ macro_rules! WriteReg {
         }
     };
 }
+
+pub(crate) static mut CONSOLE_INSTANCE: Console = Console::create();
 
 pub struct Uart {
     uart_tx_lock: Spinlock,
@@ -100,11 +105,9 @@ impl Uart {
     pub fn putc(self: &mut Self, c: u8) {
         self.uart_tx_lock.acquire();
 
-        // TODO: panicked logic
-        // if(panicked){
-        //     for(;;)
-        //     ;
-        // }
+        if PANICKED.load(Relaxed) {
+            loop {}
+        }
 
         while self.uart_tx_w == self.uart_tx_r + UART_TX_BUF_SIZE {
             // buffer is full.
@@ -124,11 +127,9 @@ impl Uart {
     pub fn putc_sync(self: &mut Self, c: u8) {
         push_off();
 
-        // TODO: panicked logic
-        // if(panicked){
-        // for(;;)
-        //     ;
-        // }
+        if PANICKED.load(Relaxed) {
+            loop {}
+        }
 
         // wait for Transmit Holding Empty to be set in LSR.
         while (ReadReg!(LSR) & LSR_TX_IDLE) == 0 {}
@@ -186,8 +187,7 @@ impl Uart {
             if c == -1 {
                 break;
             }
-            // TODO: connect with console
-            // consoleintr(c);
+            unsafe { &mut CONSOLE_INSTANCE.consoleintr(c as u8) };
         }
 
         // send buffered characters.

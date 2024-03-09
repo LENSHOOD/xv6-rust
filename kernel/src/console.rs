@@ -1,6 +1,6 @@
 use core::fmt::{Error, Write};
 use crate::file::{CONSOLE, Devsw, DEVSW};
-use crate::proc::{either_copyin, either_copyout, killed, myproc, sleep};
+use crate::proc::{either_copyin, either_copyout, killed, myproc, sleep, wakeup, procdump};
 use crate::spinlock::Spinlock;
 use crate::uart::Uart;
 
@@ -51,6 +51,54 @@ impl Console {
         } else {
             self.uart.putc_sync(c as u8);
         }
+    }
+
+    //
+    // the console input interrupt handler.
+    // uartintr() calls this for input character.
+    // do erase/kill processing, append to cons.buf,
+    // wake up consoleread() if a whole line has arrived.
+    //
+    pub(crate) fn consoleintr(self: &mut Self, c: u8) {
+        self.lock.acquire();
+
+        match c as char {
+            // Print process list.
+            'P' => procdump(),
+            // Kill line.
+            'U' => while self.e != self.w && self.buf[(self.e - 1) % INPUT_BUF_SIZE] != '\n' as u8 {
+                        self.e -= 1;
+                        self.putc(BACKSPACE);
+                    },
+            // Backspace | Delete key
+            'H' | '\x7f' => if self.e != self.w {
+                                self.e -= 1;
+                                self.putc(BACKSPACE);
+                            },
+            _ => if c != 0 && self.e-self.r < INPUT_BUF_SIZE {
+                let c = if c as char == '\r' {
+                    '\n' as u8
+                } else {
+                    c
+                };
+
+                // echo back to the user.
+                self.putc(c as u16);
+
+                // store for consumption by consoleread().
+                self.e += 1;
+                self.buf[self.e % INPUT_BUF_SIZE] = c;
+
+                if c as char == '\n' || c as char == 'D' || self.e-self.r == INPUT_BUF_SIZE {
+                    // wake up consoleread() if a whole line (or end-of-file)
+                    // has arrived.
+                    self.w = self.e;
+                    wakeup(&self.r);
+                }
+            }
+        }
+
+        self.lock.release();
     }
 }
 
