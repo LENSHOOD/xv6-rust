@@ -14,7 +14,7 @@ macro_rules! printf
 {
 	($($arg:tt)*) => {
         unsafe {
-            crate::printf(core::format_args!($($arg)*))
+            ulib::printf(core::format_args!($($arg)*))
         }
     };
 }
@@ -32,10 +32,10 @@ impl Write for Printer {
     }
 }
 
-pub(crate) fn fprintf(fd: i32, args: Arguments<'_>) {
+pub fn fprintf(fd: i32, args: Arguments<'_>) {
     Printer(fd).write_fmt(args).unwrap();
 }
 
-pub(crate) fn printf(args: Arguments<'_>) {
+pub fn printf(args: Arguments<'_>) {
     fprintf(1, args);
 }
