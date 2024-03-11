@@ -3,9 +3,10 @@
 //
 
 use crate::memlayout::{PLIC, UART0_IRQ, VIRTIO0_IRQ};
-use crate::{PLIC_SENABLE, PLIC_SPRIORITY, proc};
+use crate::{PLIC_SCLAIM, PLIC_SENABLE, PLIC_SPRIORITY, proc};
+use crate::proc::cpuid;
 
-pub fn plicinit() {
+pub(crate) fn plicinit() {
     unsafe {
         // set desired IRQ priorities non-zero (otherwise disabled).
         let uart_irq_ref = ((PLIC + UART0_IRQ*4) as * mut u32).as_mut().unwrap();
@@ -15,7 +16,7 @@ pub fn plicinit() {
     }
 }
 
-pub fn plicinithart() {
+pub(crate) fn plicinithart() {
     let hart = proc::cpuid();
 
     unsafe {
@@ -28,4 +29,17 @@ pub fn plicinithart() {
         let spriority_ref = (PLIC_SPRIORITY!(hart) as * mut u32).as_mut().unwrap();
         *(spriority_ref) = 0;
     }
+}
+
+// ask the PLIC what interrupt we should serve.
+pub(crate) fn plic_claim() -> i32 {
+    let hart = cpuid();
+    let irq = PLIC_SCLAIM!(hart) as *const i32;
+    unsafe { *irq }
+}
+
+// tell the PLIC we've served this IRQ.
+pub(crate) fn plic_complete(irq: i32) {
+    let hart = cpuid();
+    unsafe { *(PLIC_SCLAIM!(hart) as *mut i32) = irq; }
 }

@@ -36,10 +36,12 @@ mod elf;
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::sync::atomic::{AtomicBool, Ordering};
+use crate::console::Console;
 use crate::kalloc::KMem;
 use crate::printf::Printer;
 use crate::proc::cpuid;
 use crate::riscv::__sync_synchronize;
+use crate::uart::Uart;
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS
@@ -95,6 +97,8 @@ static STARTED: AtomicBool = AtomicBool::new(false);
 #[no_mangle]
 pub extern "C" fn kmain() {
     if cpuid() == 0 {
+        Uart::init();
+        Console::init();
         Printer::init();
         printf!("\nxv6 kernel is booting...\n\n");
 

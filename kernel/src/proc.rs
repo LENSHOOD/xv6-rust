@@ -192,6 +192,19 @@ impl<'a> Proc<'a> {
             name: [0; 16],
         }
     }
+
+    pub(crate) fn setkilled(self: &mut Self) {
+        self.lock.acquire();
+        self.killed = 1;
+        self.lock.release();
+    }
+
+    pub(crate) fn proc_yield(self: &mut Self) {
+        self.lock.acquire();
+        self.state = RUNNABLE;
+        sched();
+        self.lock.release();
+    }
 }
 
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
@@ -287,6 +300,11 @@ pub fn userinit() {
     p.lock.release();
 
     unsafe { INIT_PROC = Some(p); }
+}
+
+// Give up the CPU for one scheduling round.
+pub(crate) fn yield_curr_proc() {
+    myproc().proc_yield();
 }
 
 // A fork child's very first scheduling by scheduler()

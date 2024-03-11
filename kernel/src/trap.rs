@@ -1,11 +1,14 @@
-use crate::MAKE_SATP;
-use crate::memlayout::TRAMPOLINE;
-use crate::proc::myproc;
-use crate::riscv::{intr_off, PageTable, PGSIZE, r_satp, r_sstatus, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sstatus, w_stvec};
+use crate::{MAKE_SATP, printf};
+use crate::memlayout::{TRAMPOLINE, UART0_IRQ, VIRTIO0_IRQ};
+use crate::proc::{cpuid, exit, killed, myproc, wakeup, yield_curr_proc};
+use crate::riscv::{intr_off, intr_on, PageTable, PGSIZE, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sip, w_sstatus, w_stvec};
 use crate::spinlock::Spinlock;
-
+use crate::plic::{plic_claim, plic_complete};
+use crate::uart::UART_INSTANCE;
+use crate::virtio::virtio_disk::virtio_disk_intr;
 
 static mut TICKS_LOCK: Option<Spinlock> = None;
+static mut TICKS: u32 = 0;
 
 // in kernelvec.S, calls kerneltrap().
 extern {
@@ -31,8 +34,59 @@ pub fn trapinithart() {
 // called from trampoline.S
 //
 fn usertrap() {
-    // TODO: migrate
-    panic!("unimplemented")
+    if (r_sstatus() & SSTATUS_SPP) != 0 {
+        panic!("usertrap: not from user mode");
+    }
+
+    // send interrupts and exceptions to kerneltrap(),
+    // since we're now in the kernel.
+    w_stvec( (unsafe { &kernelvec } as *const u8).expose_addr());
+
+    let p = myproc();
+
+    // save user program counter.
+    let tf = unsafe { p.trapframe.unwrap().as_mut().unwrap() };
+    tf.epc = r_sepc() as u64;
+
+    let mut which_dev = 0;
+    if r_scause() == 8 {
+        // system call
+
+        if killed(p) != 0 {
+            exit(-1);
+        }
+
+        // sepc points to the ecall instruction,
+        // but we want to return to the next instruction.
+        tf.epc += 4;
+
+        // an interrupt will change sepc, scause, and sstatus,
+        // so enable only now that we're done with those registers.
+        intr_on();
+
+        // TODO: syscall
+        // syscall();
+    } else {
+        which_dev = devintr();
+        if which_dev != 0 {
+            // ok
+        } else {
+            printf!("usertrap(): unexpected scause {:x} pid={}\n", r_scause(), p.pid);
+            printf!("            sepc={:x} stval={:x}\n", r_sepc(), r_stval());
+            p.setkilled();
+        }
+    }
+
+    if killed(p) != 0 {
+        exit(-1);
+    }
+
+    // give up the CPU if this is a timer interrupt.
+    if which_dev == 2 {
+        yield_curr_proc();
+    }
+
+    usertrapret();
 }
 
 //
@@ -86,4 +140,65 @@ pub fn usertrapret() {
         let func = *(trampoline_userret as *const fn(stap: usize));
         func(satp);
     };
+}
+
+fn clockintr() {
+    unsafe {
+        let ticklock = &mut TICKS_LOCK.unwrap();
+        ticklock.acquire();
+        TICKS += 1;
+        wakeup(&TICKS);
+        ticklock.release();
+    }
+}
+
+
+// check if it's an external interrupt or software interrupt,
+// and handle it.
+// returns 2 if timer interrupt,
+// 1 if other device,
+// 0 if not recognized.
+fn devintr() -> u8 {
+    let scause = r_scause();
+
+    if (scause & 0x8000000000000000) != 0 && (scause & 0xff) == 9 {
+        // this is a supervisor external interrupt, via PLIC.
+
+        // irq indicates which device interrupted.
+        let irq = plic_claim();
+
+        if irq == UART0_IRQ as i32 {
+            unsafe { UART_INSTANCE.intr(); }
+        } else if irq == VIRTIO0_IRQ as i32 {
+            unsafe { virtio_disk_intr(); }
+        } else if irq == 0 {
+            printf!("unexpected interrupt irq={}\n", irq);
+        }
+
+        // the PLIC allows each device to raise at most one
+        // interrupt at a time; tell the PLIC the device is
+        // now allowed to interrupt again.
+        if irq == 0 {
+            plic_complete(irq);
+        }
+
+        return 1;
+    }
+
+    if scause == 0x8000000000000001 {
+        // software interrupt from a machine-mode timer interrupt,
+        // forwarded by timervec in kernelvec.S.
+
+        if cpuid() == 0 {
+            clockintr();
+        }
+
+        // acknowledge the software interrupt by clearing
+        // the SSIP bit in sip.
+        w_sip(r_sip() & !2);
+
+        return 2;
+    }
+
+    0
 }

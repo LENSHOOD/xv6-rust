@@ -32,12 +32,12 @@ macro_rules! Write_R {
 }
 
 #[derive(Copy, Clone)]
-struct Info<'a> {
-    b: Option<&'a Buf>,
+struct Info {
+    b: Option<* mut Buf>,
     status: u8,
 }
 
-struct Disk<'a> {
+struct Disk {
     // a set (not a ring) of DMA descriptors, with which the
     // driver tells the device where to read and write individual
     // disk operations. there are NUM descriptors.
@@ -63,7 +63,7 @@ struct Disk<'a> {
     // track info about in-flight operations,
     // for use when completion interrupt arrives.
     // indexed by first descriptor index of chain.
-    info: [Info<'a>; NUM],
+    info: [Info; NUM],
 
     // disk command headers.
     // one-for-one with descriptors, for convenience.
@@ -73,7 +73,7 @@ struct Disk<'a> {
 
 }
 
-impl<'a> Disk<'a> {
+impl Disk {
     const fn create() -> Self {
         Self {
             desc: ptr::null_mut(),
@@ -340,4 +340,38 @@ unsafe fn free_chain(i: usize) {
 
         i = nxt as usize;
     }
+}
+
+pub(crate) unsafe fn virtio_disk_intr() {
+    DISK.vdisk_lock.acquire();
+
+    // the device won't raise another interrupt until we tell it
+    // we've seen this interrupt, which the following line does.
+    // this may race with the device writing new entries to
+    // the "used" ring, in which case we may process the new
+    // completion entries in this interrupt, and have nothing to do
+    // in the next interrupt, which is harmless.
+    Write_R!(VIRTIO_MMIO_INTERRUPT_ACK, Read_R!(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3);
+
+    __sync_synchronize();
+
+    // the device increments disk.used->idx when it
+    // adds an entry to the used ring.
+
+    while DISK.used_idx != DISK.used.as_mut().unwrap().idx {
+        __sync_synchronize();
+        let id = DISK.used.as_mut().unwrap().ring[DISK.used_idx as usize % NUM].id as usize;
+
+        if DISK.info[id].status != 0 {
+            panic!("virtio_disk_intr status");
+        }
+
+        let b = DISK.info[id].b.unwrap().as_mut().unwrap();
+        b.disk = false;   // disk is done with buf
+        wakeup(b);
+
+        DISK.used_idx += 1;
+    }
+
+    DISK.vdisk_lock.release();
 }

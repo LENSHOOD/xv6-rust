@@ -1,5 +1,5 @@
 use core::sync::atomic::Ordering::Relaxed;
-use crate::console::Console;
+use crate::console::CONSOLE_INSTANCE;
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::PANICKED;
@@ -53,7 +53,7 @@ macro_rules! WriteReg {
     };
 }
 
-pub(crate) static mut CONSOLE_INSTANCE: Console = Console::create();
+pub(crate) static mut UART_INSTANCE: Uart = Uart::create();
 
 pub struct Uart {
     uart_tx_lock: Spinlock,
@@ -180,14 +180,14 @@ impl Uart {
     /// handle a uart interrupt, raised because input has
     /// arrived, or the uart is ready for more output, or
     /// both. called from devintr().
-    fn intr(self: &mut Self) {
+    pub(crate) fn intr(self: &mut Self) {
         // read and process incoming characters.
         loop {
             let c = self.getc();
             if c == -1 {
                 break;
             }
-            unsafe { &mut CONSOLE_INSTANCE.consoleintr(c as u8) };
+            unsafe { _ = &mut CONSOLE_INSTANCE.consoleintr(c as u8); }
         }
 
         // send buffered characters.
