@@ -111,7 +111,7 @@ pub struct Trapframe {
     /* 144 */ pub(crate) a4: u64,
     /* 152 */ pub(crate) a5: u64,
     /* 160 */ a6: u64,
-    /* 168 */ a7: u64,
+    /* 168 */ pub(crate) a7: u64,
     /* 176 */ s2: u64,
     /* 184 */ s3: u64,
     /* 192 */ s4: u64,

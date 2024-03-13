@@ -99,7 +99,6 @@ pub extern "C" fn kmain() {
     if cpuid() == 0 {
         Uart::init();
         Console::init();
-        Printer::init();
         printf!("\nxv6 kernel is booting...\n\n");
 
         KMem::kinit(); // physical page allocator

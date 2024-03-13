@@ -1,6 +1,10 @@
 use core::mem;
+use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
+use crate::syscall::{SYS_chdir, SYS_close, SYS_dup, SYS_exec, SYS_exit, SYS_fork, SYS_fstat, SYS_getpid, SYS_kill, SYS_link, SYS_mkdir, SYS_mknod, SYS_open, SYS_pipe, SYS_read, SYS_sbrk, SYS_sleep, SYS_unlink, SYS_uptime, SYS_wait, SYS_write};
+use crate::syscall::sysfile::{sys_dup, sys_mknod, sys_write};
+use crate::syscall::sysproc::{sys_exit, sys_fork, sys_wait};
 use crate::vm::{copyin, copyinstr};
 
 // Retrieve an argument as a pointer.
@@ -60,4 +64,46 @@ pub(super) fn fetchstr(addr: usize, buf: *mut u8, max: usize) -> i32 {
         return -1;
     }
     return strlen(buf) as i32;
+}
+
+// An array mapping syscall numbers from syscall.h
+// to the function that handles the system call.
+static SYSCALL: [(u8, fn() -> usize); 4] = [
+    (SYS_fork, sys_fork),
+    (SYS_exit, sys_exit),
+    (SYS_wait, sys_wait),
+    (SYS_pipe, sys_fork),
+    // (SYS_read, ),
+    // (SYS_kill, ),
+    // (SYS_exec, ),
+    // (SYS_fstat, ),
+    // (SYS_chdir, ),
+    // (SYS_dup, sys_dup),
+    // (SYS_getpid, ),
+    // (SYS_sbrk, ),
+    // (SYS_sleep, ),
+    // (SYS_uptime, ),
+    // (SYS_open, ),
+    // (SYS_write, sys_write),
+    // (SYS_mknod, sys_mknod),
+    // (SYS_unlink, ),
+    // (SYS_link, ),
+    // (SYS_mkdir, ),
+    // (SYS_close, ),
+];
+
+pub fn syscall() {
+    let p = myproc();
+
+    let tf = unsafe { p.trapframe.unwrap().as_mut().unwrap() };
+    let num = tf.a7 as usize;
+
+    if num > 0 && num < SYSCALL.len() {
+        // Use num to lookup the system call function for num, call it,
+        // and store its return value in p->trapframe->a0
+        tf.a0 = SYSCALL[num].1 as u64;
+    } else {
+        printf!("{} {}: unknown sys call {}\n", p.pid, core::str::from_utf8(&p.name).unwrap(), num);
+        tf.a0 = u64::MAX;
+    }
 }
