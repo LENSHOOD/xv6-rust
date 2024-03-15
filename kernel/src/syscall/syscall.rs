@@ -68,29 +68,32 @@ pub(super) fn fetchstr(addr: usize, buf: *mut u8, max: usize) -> i32 {
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
-static SYSCALL: [(u8, fn() -> usize); 4] = [
-    (SYS_fork, sys_fork),
-    (SYS_exit, sys_exit),
-    (SYS_wait, sys_wait),
-    (SYS_pipe, sys_fork),
-    // (SYS_read, ),
-    // (SYS_kill, ),
-    // (SYS_exec, ),
-    // (SYS_fstat, ),
-    // (SYS_chdir, ),
-    // (SYS_dup, sys_dup),
-    // (SYS_getpid, ),
-    // (SYS_sbrk, ),
-    // (SYS_sleep, ),
-    // (SYS_uptime, ),
-    // (SYS_open, ),
-    // (SYS_write, sys_write),
-    // (SYS_mknod, sys_mknod),
-    // (SYS_unlink, ),
-    // (SYS_link, ),
-    // (SYS_mkdir, ),
-    // (SYS_close, ),
-];
+const SYSCALL: [Option<fn() -> usize>; 22] = {
+    let mut arr: [Option<fn() -> usize>; 22] = [None; 22];
+    arr[0] = None;
+    arr[SYS_fork] = Some(sys_fork);
+    arr[SYS_exit] = Some(sys_exit);
+    arr[SYS_wait] = Some(sys_wait);
+    arr[SYS_pipe] = None;
+    arr[SYS_read] = None;
+    arr[SYS_kill] = None;
+    arr[SYS_exec] = None;
+    arr[SYS_fstat] = None;
+    arr[SYS_chdir] = None;
+    arr[SYS_dup] = None;
+    arr[SYS_getpid] = None;
+    arr[SYS_sbrk] = None;
+    arr[SYS_sleep] = None;
+    arr[SYS_uptime] = None;
+    arr[SYS_open] = None;
+    arr[SYS_write] = None;
+    arr[SYS_mknod] = None;
+    arr[SYS_unlink] = None;
+    arr[SYS_link] = None;
+    arr[SYS_mkdir] = None;
+    arr[SYS_close] = None;
+    arr
+};
 
 pub fn syscall() {
     let p = myproc();
@@ -98,10 +101,10 @@ pub fn syscall() {
     let tf = unsafe { p.trapframe.unwrap().as_mut().unwrap() };
     let num = tf.a7 as usize;
 
-    if num > 0 && num < SYSCALL.len() {
+    if num > 0 && num < SYSCALL.len() && SYSCALL[num].is_some() {
         // Use num to lookup the system call function for num, call it,
         // and store its return value in p->trapframe->a0
-        tf.a0 = SYSCALL[num].1 as u64;
+        tf.a0 = SYSCALL[num].unwrap()() as u64;
     } else {
         printf!("{} {}: unknown sys call {}\n", p.pid, core::str::from_utf8(&p.name).unwrap(), num);
         tf.a0 = u64::MAX;
