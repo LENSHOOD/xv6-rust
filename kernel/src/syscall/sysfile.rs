@@ -14,7 +14,7 @@ use crate::stat::FileType;
 use crate::stat::FileType::{T_DEVICE, T_DIR, T_FILE};
 use crate::syscall::syscall::{argaddr, argint, argstr, fetchaddr, fetchstr};
 
-fn sys_exec() -> u64 {
+pub(crate) fn sys_exec() -> u64 {
     let mut uarg: usize = 0;
     let uargv = argaddr(1);
 
@@ -74,12 +74,12 @@ fn sys_exec() -> u64 {
     return ret as u64;
 }
 
-fn sys_open() -> Option<usize> {
+pub(crate) fn sys_open() -> u64 {
     let mut path: [u8; MAXPATH] = ['\0' as u8; MAXPATH];
     let omode = argint(1) as u64;
     let n = argstr(0, &mut path as *mut u8, MAXPATH);
     if n < 0 {
-        return None;
+        return -1i64 as u64;
     }
 
     begin_op();
@@ -90,13 +90,13 @@ fn sys_open() -> Option<usize> {
         ip = create(path, T_FILE, 0, 0);
         if ip.is_none() {
             end_op();
-            return None;
+            return -1i64 as u64;
         }
     } else {
         ip = namei(path);
         if ip.is_none() {
             end_op();
-            return None;
+            return -1i64 as u64;
         }
 
         let ip = ip.as_mut()?;
@@ -104,7 +104,7 @@ fn sys_open() -> Option<usize> {
         if ip.file_type == T_DIR && omode != O_RDONLY {
             ip.iunlockput();
             end_op();
-            return None;
+            return -1i64 as u64;
         }
     }
 
@@ -112,7 +112,7 @@ fn sys_open() -> Option<usize> {
     if ip.file_type == T_DEVICE && (ip.major < 0 || ip.major as usize >= NDEV) {
         ip.iunlockput();
         end_op();
-        return None;
+        return -1i64 as u64;
     }
 
 
@@ -120,7 +120,7 @@ fn sys_open() -> Option<usize> {
     if f.is_none() {
         ip.iunlockput();
         end_op();
-        return None;
+        return -1i64 as u64;
     }
 
     let f = f?;
@@ -129,7 +129,7 @@ fn sys_open() -> Option<usize> {
         fileclose(f);
         ip.iunlockput();
         end_op();
-        return None;
+        return -1i64 as u64;
     }
 
     if ip.file_type == T_DEVICE {
@@ -150,22 +150,22 @@ fn sys_open() -> Option<usize> {
     ip.iunlock();
     end_op();
 
-    return fd;
+    return fd.unwrap() as u64;
 }
 
-pub(crate) fn sys_write() -> i64 {
+pub(crate) fn sys_write() -> u64 {
     let p = argaddr(1);
     let n = argint(2);
     let fd_file = argfd(0);
     if fd_file.is_none() {
-        return -1;
+        return -1i64 as u64;
     }
 
     let file = unsafe { fd_file.unwrap().1.as_mut().unwrap() };
-    return filewrite(file, p, n) as i64;
+    return filewrite(file, p, n) as u64;
 }
 
-pub(crate) fn sys_mknod() -> i64 {
+pub(crate) fn sys_mknod() -> u64 {
     begin_op();
     let major = argint(1)  as i16;
     let minor = argint(2)  as i16;
@@ -174,14 +174,14 @@ pub(crate) fn sys_mknod() -> i64 {
 
     if (argstr(0, &mut path as *mut u8, MAXPATH)) < 0 {
         end_op();
-        return -1;
+        return -1i64 as u64;
     }
 
     let path_str = unsafe { core::str::from_utf8_unchecked(&path) };
     let ip = create(path_str, T_DEVICE, major, minor);
     if ip.is_none() {
         end_op();
-        return -1;
+        return -1i64 as u64;
     }
 
     ip.unwrap().iunlockput();
@@ -280,19 +280,19 @@ fn argfd(n: u8) -> Option<(usize, *mut File)> {
     Some((fd, f))
 }
 
-pub(crate) fn sys_dup() -> i64 {
+pub(crate) fn sys_dup() -> u64 {
     let fd_file = argfd(0);
     if fd_file.is_none() {
-        return -1;
+        return -1i64 as u64;
     }
 
     let f = fd_file.unwrap().1;
     let fd = fdalloc(f);
     if fd.is_none() {
-        return -1;
+        return -1i64 as u64;
     }
 
     filedup(f);
 
-    return fd.unwrap() as i64;
+    return fd.unwrap() as u64;
 }

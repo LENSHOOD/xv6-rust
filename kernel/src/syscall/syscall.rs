@@ -1,9 +1,10 @@
 use core::mem;
+use kernel::syscall::sysfile::sys_open;
 use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
 use crate::syscall::{SYS_chdir, SYS_close, SYS_dup, SYS_exec, SYS_exit, SYS_fork, SYS_fstat, SYS_getpid, SYS_kill, SYS_link, SYS_mkdir, SYS_mknod, SYS_open, SYS_pipe, SYS_read, SYS_sbrk, SYS_sleep, SYS_unlink, SYS_uptime, SYS_wait, SYS_write};
-use crate::syscall::sysfile::{sys_dup, sys_mknod, sys_write};
+use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
 use crate::syscall::sysproc::{sys_exit, sys_fork, sys_wait};
 use crate::vm::{copyin, copyinstr};
 
@@ -68,8 +69,8 @@ pub(super) fn fetchstr(addr: usize, buf: *mut u8, max: usize) -> i32 {
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
-const SYSCALL: [Option<fn() -> usize>; 22] = {
-    let mut arr: [Option<fn() -> usize>; 22] = [None; 22];
+const SYSCALL: [Option<fn() -> u64>; 22] = {
+    let mut arr: [Option<fn() -> u64>; 22] = [None; 22];
     arr[0] = None;
     arr[SYS_fork] = Some(sys_fork);
     arr[SYS_exit] = Some(sys_exit);
@@ -77,17 +78,17 @@ const SYSCALL: [Option<fn() -> usize>; 22] = {
     arr[SYS_pipe] = None;
     arr[SYS_read] = None;
     arr[SYS_kill] = None;
-    arr[SYS_exec] = None;
+    arr[SYS_exec] = Some(sys_exec);
     arr[SYS_fstat] = None;
     arr[SYS_chdir] = None;
-    arr[SYS_dup] = None;
+    arr[SYS_dup] = Some(sys_dup);
     arr[SYS_getpid] = None;
     arr[SYS_sbrk] = None;
     arr[SYS_sleep] = None;
     arr[SYS_uptime] = None;
-    arr[SYS_open] = None;
-    arr[SYS_write] = None;
-    arr[SYS_mknod] = None;
+    arr[SYS_open] = Some(sys_open);
+    arr[SYS_write] = Some(sys_write);
+    arr[SYS_mknod] = Some(sys_mknod);
     arr[SYS_unlink] = None;
     arr[SYS_link] = None;
     arr[SYS_mkdir] = None;
@@ -104,7 +105,7 @@ pub fn syscall() {
     if num > 0 && num < SYSCALL.len() && SYSCALL[num].is_some() {
         // Use num to lookup the system call function for num, call it,
         // and store its return value in p->trapframe->a0
-        tf.a0 = SYSCALL[num].unwrap()() as u64;
+        tf.a0 = SYSCALL[num].unwrap()();
     } else {
         printf!("{} {}: unknown sys call {}\n", p.pid, core::str::from_utf8(&p.name).unwrap(), num);
         tf.a0 = u64::MAX;

@@ -6,23 +6,23 @@ use crate::vm::uvmcopy;
 use crate::proc::{Procstate::RUNNABLE, WAIT_LOCK, exit};
 use crate::syscall::syscall::{argaddr, argint};
 
-pub(crate) fn sys_exit() -> usize {
+pub(crate) fn sys_exit() -> u64 {
     let n = argint(0);
     exit(n);
     return 0;  // not reached
 }
 
 
-pub(crate) fn sys_fork() -> usize {
+pub(crate) fn sys_fork() -> u64 {
     return match fork() {
         Some(pid) => pid,
         None => u32::MAX
-    } as usize
+    } as u64
 }
 
-pub(crate) fn sys_wait() -> usize {
+pub(crate) fn sys_wait() -> u64 {
     let p = argaddr(0);
-    return wait(p) as usize;
+    return wait(p) as u64;
 }
 
 
