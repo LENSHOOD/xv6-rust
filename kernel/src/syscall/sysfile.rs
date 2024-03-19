@@ -99,7 +99,7 @@ pub(crate) fn sys_open() -> u64 {
             return -1i64 as u64;
         }
 
-        let ip = ip.as_mut()?;
+        let ip = ip.as_mut().unwrap();
         ip.ilock();
         if ip.file_type == T_DIR && omode != O_RDONLY {
             ip.iunlockput();
@@ -108,7 +108,7 @@ pub(crate) fn sys_open() -> u64 {
         }
     }
 
-    let ip = ip?;
+    let ip = ip.unwrap();
     if ip.file_type == T_DEVICE && (ip.major < 0 || ip.major as usize >= NDEV) {
         ip.iunlockput();
         end_op();
@@ -123,7 +123,7 @@ pub(crate) fn sys_open() -> u64 {
         return -1i64 as u64;
     }
 
-    let f = f?;
+    let f = f.unwrap();
     let fd = fdalloc(f);
     if fd.is_none() {
         fileclose(f);

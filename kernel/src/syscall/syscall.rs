@@ -1,5 +1,5 @@
 use core::mem;
-use kernel::syscall::sysfile::sys_open;
+use crate::syscall::sysfile::sys_open;
 use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
