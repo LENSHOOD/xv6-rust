@@ -115,7 +115,6 @@ pub(crate) fn sys_open() -> u64 {
         return -1i64 as u64;
     }
 
-
     let f = filealloc();
     if f.is_none() {
         ip.iunlockput();

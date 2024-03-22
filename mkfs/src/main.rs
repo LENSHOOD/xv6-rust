@@ -102,7 +102,7 @@ fn main() -> Result<()> {
                     file_name.to_string()
                 };
 
-                assert_eq!(short_name.find("/"), Some(0));
+                assert_eq!(short_name.find("/"), None);
 
                 let mut file = File::open(file_name)?;
 

@@ -7,7 +7,7 @@ use core::mem;
 use crate::stat::FileType;
 
 pub const ROOTINO: u32 = 1;   // root i-number
-pub const BSIZE: usize = 1024;  // block size
+pub const BSIZE: usize = 8192;  // block size
 
 // Disk layout:
 // [ boot block | super block | log | inode blocks |
