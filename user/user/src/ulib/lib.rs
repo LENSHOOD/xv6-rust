@@ -1,5 +1,6 @@
 #![no_std]
-mod stubs;
+
+pub mod stubs;
 
 use core::fmt::Arguments;
 use core::fmt::{Write, Error};
@@ -17,6 +18,13 @@ macro_rules! printf
             ulib::printf(core::format_args!($($arg)*))
         }
     };
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        unsafe { core::arch::asm!("wfi") }
+    }
 }
 
 struct Printer(i32);

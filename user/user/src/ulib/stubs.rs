@@ -4,7 +4,7 @@ extern {
     // int exit(int) __attribute__((noreturn));
     // int wait(int*);
     // int pipe(int*);
-    pub(crate) fn write(fd: i32, data: *const u8, sz: i32) -> i32;
+    pub fn write(fd: i32, data: *const u8, sz: i32) -> i32;
     // int read(int, void*, int);
     // int close(int);
     // int kill(int);

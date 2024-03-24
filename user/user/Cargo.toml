@@ -1,0 +1,18 @@
+[package]
+name = "user"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "ulib"
+path = "src/ulib/lib.rs"
+
+[[bin]]
+name = "_init"
+path = "src/init.rs"
+
+[[bin]]
+name = "_echo"
+path = "src/echo.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
