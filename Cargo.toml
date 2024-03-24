@@ -1,7 +1,7 @@
 [workspace]
-name = "xv6-rust"
+resolver = "2"
 members = [
     "kernel",
-    "user/user",
+    "user",
     "mkfs",
 ]
