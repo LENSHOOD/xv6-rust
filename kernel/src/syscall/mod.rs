@@ -1,5 +1,5 @@
 mod sysfile;
-mod syscall;
+pub(crate) mod syscall;
 mod sysproc;
 
 // System call numbers

@@ -1,9 +1,11 @@
 use crate::{MAKE_SATP, printf};
 use crate::memlayout::{TRAMPOLINE, UART0_IRQ, VIRTIO0_IRQ};
 use crate::proc::{cpuid, exit, killed, myproc, wakeup, yield_curr_proc};
-use crate::riscv::{intr_off, intr_on, PageTable, PGSIZE, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sip, w_sstatus, w_stvec};
+use crate::riscv::{intr_get, intr_off, intr_on, PageTable, PGSIZE, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sip, w_sstatus, w_stvec};
 use crate::spinlock::Spinlock;
 use crate::plic::{plic_claim, plic_complete};
+use crate::proc::Procstate::RUNNING;
+use crate::syscall::syscall::syscall;
 use crate::uart::UART_INSTANCE;
 use crate::virtio::virtio_disk::virtio_disk_intr;
 
@@ -64,8 +66,7 @@ fn usertrap() {
         // so enable only now that we're done with those registers.
         intr_on();
 
-        // TODO: syscall
-        // syscall();
+        syscall();
     } else {
         which_dev = devintr();
         if which_dev != 0 {
@@ -140,6 +141,42 @@ pub fn usertrapret() {
         let func = *(trampoline_userret as *const fn(stap: usize));
         func(satp);
     };
+}
+
+// interrupts and exceptions from kernel code go here via kernelvec,
+// on whatever the current kernel stack is.
+#[no_mangle]
+extern "C"
+fn kerneltrap() {
+    let mut which_dev = 0;
+    let sepc = r_sepc();
+    let sstatus = r_sstatus();
+    let scause = r_scause();
+    
+    if (sstatus & SSTATUS_SPP) == 0 {
+        panic!("kerneltrap: not from supervisor mode");
+    }
+    if intr_get() {
+        panic!("kerneltrap: interrupts enabled");
+    }
+
+    which_dev = devintr();
+    if which_dev == 0 {
+        printf!("scause %{:x}\n", scause);
+        printf!("sepc=%{:x} stval=%{:x}\n", r_sepc(), r_stval());
+        panic!("kerneltrap");
+    }
+    
+    let p = myproc();
+    // give up the CPU if this is a timer interrupt.
+    if which_dev == 2 && p.state == RUNNING {
+        p.proc_yield();
+    }
+    
+    // the yield() may have caused some traps to occur,
+    // so restore trap registers for use by kernelvec.S's sepc instruction.
+    w_sepc(sepc);
+    w_sstatus(sstatus);
 }
 
 fn clockintr() {
