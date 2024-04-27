@@ -137,9 +137,9 @@ fn main() -> Result<()> {
     let mut off = din.size.to_le();
     off = (((off as usize / BSIZE) + 1) * BSIZE) as u32;
     din.size = off.to_le();
-    winode(&mut img_file,rootino, din)?;
+    winode(&mut img_file, rootino, din)?;
 
-    balloc(&mut img_file,FREEBLOCK.load(Ordering::Relaxed) as i32)?;
+    balloc(&mut img_file, FREEBLOCK.load(Ordering::Relaxed) as i32)?;
 
     Ok(())
 }

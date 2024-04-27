@@ -17,7 +17,7 @@ pub(crate) fn plicinit() {
 }
 
 pub(crate) fn plicinithart() {
-    let hart = proc::cpuid();
+    let hart = cpuid();
 
     unsafe {
         // set enable bits for this hart's S-mode

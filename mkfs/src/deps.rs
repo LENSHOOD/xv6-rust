@@ -10,7 +10,7 @@ pub const LOGSIZE: u32 = MAXOPBLOCKS*3;  // max data blocks in on-disk log
 
 pub const FSSIZE: u32 = 2000;  // size of file system in blocks
 
-pub const BSIZE: usize = 8192;  // block size
+pub const BSIZE: usize = 4096;  // block size
 
 pub const IPB: u32 = (BSIZE / mem::size_of::<DINode>()) as u32;
 
