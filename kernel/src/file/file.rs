@@ -1,5 +1,5 @@
-use crate::file::{DEVSW, File};
 use crate::file::FDType::{FD_DEVICE, FD_INODE, FD_NONE, FD_PIPE};
+use crate::file::{File, DEVSW};
 use crate::fs::BSIZE;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXOPBLOCKS, NDEV, NFILE};
@@ -7,7 +7,7 @@ use crate::spinlock::Spinlock;
 
 struct FTable {
     lock: Spinlock,
-    file: [File; NFILE]
+    file: [File; NFILE],
 }
 
 static mut FTABLE: FTable = FTable {
@@ -91,14 +91,22 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
     }
 
     match f.file_type {
-        FD_PIPE =>
-            unsafe { f.pipe.unwrap().as_mut().unwrap().write(addr, n) },
+        FD_PIPE => unsafe { f.pipe.unwrap().as_mut().unwrap().write(addr, n) },
         FD_DEVICE => {
-            if f.major < 0 || f.major as usize >= NDEV || unsafe { !DEVSW[f.major as usize].is_none() } {
+            if f.major < 0
+                || f.major as usize >= NDEV
+                || unsafe { !DEVSW[f.major as usize].is_none() }
+            {
                 return -1;
             }
-            unsafe { DEVSW[f.major as usize].unwrap().as_mut().unwrap().write(true, addr, n as usize) }
-        },
+            unsafe {
+                DEVSW[f.major as usize]
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .write(true, addr, n as usize)
+            }
+        }
         FD_INODE => {
             // write a few blocks at a time to avoid exceeding
             // the maximum log transaction size, including
@@ -106,7 +114,7 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
             // and 2 blocks of slop for non-aligned writes.
             // this really belongs lower down, since writei()
             // might be writing a device like the console.
-            let max = (((MAXOPBLOCKS-1-1-2) / 2) * BSIZE) as i32;
+            let max = (((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE) as i32;
             let mut i = 0;
             let mut r = 0;
             while i < n {
@@ -137,7 +145,7 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
             } else {
                 -1
             }
-        },
-        FD_NONE => panic!("filewrite")
+        }
+        FD_NONE => panic!("filewrite"),
     }
 }

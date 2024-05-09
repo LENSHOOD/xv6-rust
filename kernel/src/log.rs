@@ -1,11 +1,11 @@
-use core::mem;
 use crate::bio::{bpin, bread, brelse, bunpin, bwrite};
 use crate::buf::Buf;
-use crate::fs::{BSIZE, SuperBlock};
+use crate::fs::{SuperBlock, BSIZE};
 use crate::param::{LOGSIZE, MAXOPBLOCKS};
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::Spinlock;
 use crate::string::memmove;
+use core::mem;
 
 // Simple logging that allows concurrent FS system calls.
 //
@@ -54,7 +54,10 @@ static mut LOG: Log = Log {
     outstanding: 0,
     committing: 0,
     dev: 0,
-    lh: LogHeader { n: 0, block: [0; LOGSIZE] },
+    lh: LogHeader {
+        n: 0,
+        block: [0; LOGSIZE],
+    },
 };
 
 pub fn initlog(dev: u32, sb: &SuperBlock) {
@@ -73,7 +76,9 @@ pub fn initlog(dev: u32, sb: &SuperBlock) {
 unsafe fn recover_from_log() {
     read_head();
     install_trans(true); // if committed, copy from log to disk
-    unsafe { LOG.lh.n = 0; }
+    unsafe {
+        LOG.lh.n = 0;
+    }
     write_head(); // clear the log
 }
 
@@ -163,7 +168,7 @@ unsafe fn write_log() {
         let to = bread(LOG.dev, LOG.start + tail + 1); // log block
         let from = bread(LOG.dev, LOG.lh.block[tail as usize]); // cache block
         memmove(&mut to.data as *mut u8, &from.data as *const u8, BSIZE);
-        bwrite(to);  // write the log
+        bwrite(to); // write the log
         brelse(from);
         brelse(to);
     }
@@ -171,11 +176,11 @@ unsafe fn write_log() {
 
 unsafe fn commit() {
     if LOG.lh.n > 0 {
-        write_log();     // Write modified blocks from cache to log
-        write_head();    // Write header to disk -- the real commit
+        write_log(); // Write modified blocks from cache to log
+        write_head(); // Write header to disk -- the real commit
         install_trans(false); // Now install writes to home locations
         LOG.lh.n = 0;
-        write_head();    // Erase the transaction from the log
+        write_head(); // Erase the transaction from the log
     }
 }
 
@@ -186,7 +191,7 @@ pub fn begin_op() {
         loop {
             if LOG.committing != 0 {
                 sleep(&LOG, &mut LOG.lock);
-            } else if (LOG.lh.n as usize + (LOG.outstanding as usize + 1)*MAXOPBLOCKS) > LOGSIZE {
+            } else if (LOG.lh.n as usize + (LOG.outstanding as usize + 1) * MAXOPBLOCKS) > LOGSIZE {
                 // this op might exhaust log space; wait for commit.
                 sleep(&LOG, &mut LOG.lock);
             } else {

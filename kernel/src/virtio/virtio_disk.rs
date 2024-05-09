@@ -5,7 +5,6 @@
 // qemu ... -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 //
 
-use core::{mem, ptr};
 use crate::buf::Buf;
 use crate::fs::BSIZE;
 use crate::kalloc::KMEM;
@@ -14,26 +13,23 @@ use crate::riscv::{__sync_synchronize, PGSIZE};
 use crate::spinlock::Spinlock;
 use crate::string::memset;
 use crate::virtio::*;
+use core::{mem, ptr};
 // the address of virtio mmio register r.
 macro_rules! Read_R {
     ( $r:expr ) => {
-        unsafe {
-            (($crate::memlayout::VIRTIO0 + $r) as *const usize).read_volatile() as u32
-        }
+        unsafe { (($crate::memlayout::VIRTIO0 + $r) as *const usize).read_volatile() as u32 }
     };
 }
 
 macro_rules! Write_R {
     ( $r:expr, $val:expr ) => {
-        unsafe {
-            (($crate::memlayout::VIRTIO0 + $r) as *mut usize).write_volatile($val as usize)
-        }
+        unsafe { (($crate::memlayout::VIRTIO0 + $r) as *mut usize).write_volatile($val as usize) }
     };
 }
 
 #[derive(Copy, Clone)]
 struct Info {
-    b: Option<* mut Buf>,
+    b: Option<*mut Buf>,
     status: u8,
 }
 
@@ -57,8 +53,8 @@ struct Disk {
     used: *mut VirtqUsed,
 
     // our own book-keeping.
-    free: [bool; NUM],  // is a descriptor free?
-    used_idx: u16, // we've looked this far in used[2..NUM].
+    free: [bool; NUM], // is a descriptor free?
+    used_idx: u16,     // we've looked this far in used[2..NUM].
 
     // track info about in-flight operations,
     // for use when completion interrupt arrives.
@@ -70,7 +66,6 @@ struct Disk {
     ops: [VirtioBlkReq; NUM],
 
     vdisk_lock: Spinlock,
-
 }
 
 impl Disk {
@@ -81,8 +76,8 @@ impl Disk {
             used: ptr::null_mut(),
             free: [false; NUM],
             used_idx: 0,
-            info: [Info{ b: None, status: 0 }; NUM],
-            ops: [VirtioBlkReq{
+            info: [Info { b: None, status: 0 }; NUM],
+            ops: [VirtioBlkReq {
                 desc_type: 0,
                 reserved: 0,
                 sector: 0,
@@ -93,11 +88,11 @@ impl Disk {
 }
 static mut DISK: Disk = Disk::create();
 pub fn virtio_disk_init() {
-    if Read_R!(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976 ||
-        Read_R!(VIRTIO_MMIO_VERSION) != 2 ||
-        Read_R!(VIRTIO_MMIO_DEVICE_ID) != 2 ||
-        Read_R!(VIRTIO_MMIO_VENDOR_ID) != 0x554d4551 {
-
+    if Read_R!(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976
+        || Read_R!(VIRTIO_MMIO_VERSION) != 2
+        || Read_R!(VIRTIO_MMIO_DEVICE_ID) != 2
+        || Read_R!(VIRTIO_MMIO_VENDOR_ID) != 0x554d4551
+    {
         panic!("could not find virtio disk");
     }
 
@@ -148,7 +143,7 @@ pub fn virtio_disk_init() {
     if max == 0 {
         panic!("virtio disk has no queue 0");
     }
-    if (max as usize ) < NUM{
+    if (max as usize) < NUM {
         panic!("virtio disk max queue too short");
     }
 
@@ -181,7 +176,9 @@ pub fn virtio_disk_init() {
 
     // all NUM descriptors start out unused.
     for i in 0..NUM {
-        unsafe { (&mut DISK).free[i] = true; }
+        unsafe {
+            (&mut DISK).free[i] = true;
+        }
     }
 
     // tell device we're completely ready.
@@ -287,7 +284,7 @@ fn alloc3_desc() -> Option<[usize; 3]> {
                     }
                     return None;
                 }
-                Some(curr) => idx[i] = curr
+                Some(curr) => idx[i] = curr,
             }
         }
     }
@@ -335,7 +332,7 @@ unsafe fn free_chain(i: usize) {
         let nxt = desc.next;
         free_desc(i);
         if flag & VRING_DESC_F_NEXT != 0 {
-            break
+            break;
         }
 
         i = nxt as usize;
@@ -351,7 +348,10 @@ pub(crate) unsafe fn virtio_disk_intr() {
     // the "used" ring, in which case we may process the new
     // completion entries in this interrupt, and have nothing to do
     // in the next interrupt, which is harmless.
-    Write_R!(VIRTIO_MMIO_INTERRUPT_ACK, Read_R!(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3);
+    Write_R!(
+        VIRTIO_MMIO_INTERRUPT_ACK,
+        Read_R!(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3
+    );
 
     __sync_synchronize();
 
@@ -367,7 +367,7 @@ pub(crate) unsafe fn virtio_disk_intr() {
         }
 
         let b = DISK.info[id].b.unwrap().as_mut().unwrap();
-        b.disk = false;   // disk is done with buf
+        b.disk = false; // disk is done with buf
         wakeup(b);
 
         DISK.used_idx += 1;

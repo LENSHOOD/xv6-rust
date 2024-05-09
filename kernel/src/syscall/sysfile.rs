@@ -1,9 +1,8 @@
-use core::mem;
 use crate::exec::exec;
 use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
-use crate::file::file::{filealloc, filedup, fileclose, filewrite};
-use crate::file::{File, INode};
+use crate::file::file::{filealloc, fileclose, filedup, filewrite};
 use crate::file::FDType::{FD_DEVICE, FD_INODE};
+use crate::file::{File, INode};
 use crate::fs::fs::{dirlink, dirlookup, ialloc, namei, nameiparent};
 use crate::kalloc::KMEM;
 use crate::log::{begin_op, end_op};
@@ -13,6 +12,7 @@ use crate::riscv::PGSIZE;
 use crate::stat::FileType;
 use crate::stat::FileType::{T_DEVICE, T_DIR, T_FILE};
 use crate::syscall::syscall::{argaddr, argint, argstr, fetchaddr, fetchstr};
+use core::mem;
 
 pub(crate) fn sys_exec() -> u64 {
     let mut uarg: usize = 0;
@@ -29,12 +29,12 @@ pub(crate) fn sys_exec() -> u64 {
     loop {
         if i >= argv.len() {
             bad = true;
-            break
+            break;
         }
 
-        if fetchaddr(uargv+mem::size_of::<usize>()*i, &mut uarg) < 0 {
+        if fetchaddr(uargv + mem::size_of::<usize>() * i, &mut uarg) < 0 {
             bad = true;
-            break
+            break;
         }
 
         if uarg == 0 {
@@ -45,14 +45,13 @@ pub(crate) fn sys_exec() -> u64 {
         let ptr: *mut u8 = unsafe { KMEM.kalloc() };
         if ptr.is_null() {
             bad = true;
-            break
+            break;
         }
         argv[i] = Some(ptr);
 
-
         if fetchstr(uarg, argv[i].unwrap(), PGSIZE) < 0 {
             bad = true;
-            break
+            break;
         }
 
         i += 1;
@@ -65,7 +64,7 @@ pub(crate) fn sys_exec() -> u64 {
 
     for i in 0..argv.len() {
         if argv[i].is_none() {
-            break
+            break;
         }
 
         unsafe { KMEM.kfree(argv[i].unwrap()) }
@@ -166,8 +165,8 @@ pub(crate) fn sys_write() -> u64 {
 
 pub(crate) fn sys_mknod() -> u64 {
     begin_op();
-    let major = argint(1)  as i16;
-    let minor = argint(2)  as i16;
+    let major = argint(1) as i16;
+    let minor = argint(2) as i16;
 
     let mut path = [0; MAXPATH];
 
@@ -187,7 +186,6 @@ pub(crate) fn sys_mknod() -> u64 {
     end_op();
     return 0;
 }
-
 
 fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option<&'a mut INode> {
     let dp = nameiparent(path)?;
@@ -218,9 +216,11 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
     ip.nlink = 1;
     ip.iupdate();
 
-    if file_type == T_DIR {  // Create . and .. entries.
+    if file_type == T_DIR {
+        // Create . and .. entries.
         // No ip->nlink++ for ".": avoid cyclic ref count.
-        if dirlink(ip, ".", ip.inum as u16).is_none() || dirlink(ip, "..", dp.inum as u16).is_none() {
+        if dirlink(ip, ".", ip.inum as u16).is_none() || dirlink(ip, "..", dp.inum as u16).is_none()
+        {
             // something went wrong. de-allocate ip.
             ip.nlink = 0;
             ip.iupdate();
@@ -241,7 +241,7 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
 
     if file_type == T_DIR {
         // now that success is guaranteed:
-        dp.nlink += 1;  // for ".."
+        dp.nlink += 1; // for ".."
         ip.iupdate();
     }
 

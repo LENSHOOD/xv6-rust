@@ -1,10 +1,10 @@
 // Format of an ELF executable file
 
-pub const ELF_MAGIC: u32 = 0x464C457F;  // "\x7FELF" in little endian
+pub const ELF_MAGIC: u32 = 0x464C457F; // "\x7FELF" in little endian
 
 // File header
 pub struct ElfHeader {
-    pub(crate) magic: u32,  // must equal ELF_MAGIC
+    pub(crate) magic: u32, // must equal ELF_MAGIC
     pub(crate) elf: [u8; 12],
     pub(crate) hdr_type: u16,
     pub(crate) machine: u16,

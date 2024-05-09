@@ -1,18 +1,20 @@
-use core::ptr::null_mut;
 use crate::kalloc::KMEM;
-use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, printf, PTE2PA, PTE_FLAGS, PX};
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
 use crate::proc::proc_mapstacks;
-use crate::riscv::{MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp};
+use crate::riscv::{
+    sfence_vma, w_satp, PageTable, Pte, MAXVA, PGSIZE, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X,
+};
 use crate::string::{memmove, memset};
+use crate::{printf, MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, PTE2PA, PTE_FLAGS, PX};
+use core::ptr::null_mut;
 
 /*
  * the kernel's page table.
  */
 pub static mut KERNEL_PAGETABLE: Option<&'static PageTable> = None;
 
-extern {
-    static etext: u8;  // kernel.ld sets this to end of kernel code.
+extern "C" {
+    static etext: u8; // kernel.ld sets this to end of kernel code.
     static trampoline: u8; // trampoline.S
 }
 
@@ -42,12 +44,24 @@ fn kvmmake<'a>() -> &'a PageTable {
 
     let etext_addr = (unsafe { &etext } as *const u8).expose_addr();
     // map kernel text executable and read-only.
-    kvmmap(kpgtbl, KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
+    kvmmap(
+        kpgtbl,
+        KERNBASE,
+        KERNBASE,
+        etext_addr - KERNBASE,
+        PTE_R | PTE_X,
+    );
     // printf!("etext_addr: {:x}, KERNBASE: {:x}, PHYSTOP: {:x}, size: {}\n", etext_addr, KERNBASE, PHYSTOP, etext_addr - KERNBASE);
     // printf!("KERNBASE Mapped.\n");
 
     // map kernel data and the physical RAM we'll make use of.
-    kvmmap(kpgtbl, etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
+    kvmmap(
+        kpgtbl,
+        etext_addr,
+        etext_addr,
+        PHYSTOP - etext_addr,
+        PTE_R | PTE_W,
+    );
     // printf!("etext_addr Mapped.\n");
 
     let trapoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
@@ -73,8 +87,7 @@ pub fn kvminit() {
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
-pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: usize)
-{
+pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: usize) {
     if mappages(kpgtbl, va, pa, sz, perm) != 0 {
         panic!("kvmmap");
     }
@@ -84,7 +97,13 @@ pub fn kvmmap(kpgtbl: &mut PageTable, va: usize, pa: usize, sz: usize, perm: usi
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
 // allocate a needed page-table page.
-pub fn mappages(pagetable: &mut PageTable, va: usize, mut pa: usize, size: usize, perm: usize) -> i32 {
+pub fn mappages(
+    pagetable: &mut PageTable,
+    va: usize,
+    mut pa: usize,
+    size: usize,
+    perm: usize,
+) -> i32 {
     if size == 0 {
         panic!("mappages: size");
     }
@@ -138,14 +157,15 @@ pub fn uvmunmap(pagetable: &mut PageTable, va: usize, npages: usize, do_free: bo
 
                 if do_free {
                     let pa = PTE2PA!(pte.0);
-                    unsafe { KMEM.kfree(pa as *mut PageTable); }
+                    unsafe {
+                        KMEM.kfree(pa as *mut PageTable);
+                    }
                 }
                 *pte = Pte(0);
             }
         }
     }
 }
-
 
 // Return the address of the PTE in page table pagetable
 // that corresponds to virtual address va.  If alloc!=0,
@@ -167,8 +187,10 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
     let mut curr_pgtbl = pagetable;
     for level in (1..3).rev() {
         let pte = &mut (curr_pgtbl.0)[PX!(level, va)];
-        if pte.0 & PTE_V  == PTE_V {
-            unsafe { curr_pgtbl = (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap(); }
+        if pte.0 & PTE_V == PTE_V {
+            unsafe {
+                curr_pgtbl = (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap();
+            }
         } else {
             unsafe {
                 if alloc == 0 {
@@ -210,13 +232,12 @@ pub fn walkaddr(page_table: &mut PageTable, va: usize) -> Option<usize> {
         return None;
     }
     if (pte.0 & PTE_U) == 0 {
-        return None
+        return None;
     }
 
     let pa = PTE2PA!(pte.0);
     return Some(pa);
 }
-
 
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
@@ -234,7 +255,7 @@ pub fn kvminithart() {
 
 // create an empty user page table.
 // returns 0 if out of memory.
-pub fn uvmcreate<'a>() -> Option<&'a mut PageTable>{
+pub fn uvmcreate<'a>() -> Option<&'a mut PageTable> {
     unsafe {
         let pagetable: *mut PageTable = KMEM.kalloc();
         if pagetable.is_null() {
@@ -255,7 +276,13 @@ pub fn uvmfirst(pagetable: &mut PageTable, src: *const u8, sz: usize) {
 
     let mem = unsafe { KMEM.kalloc() };
     memset(mem, 0, PGSIZE);
-    mappages(pagetable, 0, mem.expose_addr(), PGSIZE, PTE_W | PTE_R | PTE_X | PTE_U);
+    mappages(
+        pagetable,
+        0,
+        mem.expose_addr(),
+        PGSIZE,
+        PTE_W | PTE_R | PTE_X | PTE_U,
+    );
     memmove(mem, src, sz);
 }
 
@@ -268,7 +295,7 @@ fn freewalk(pagetable: &mut PageTable) {
             panic!("freewalk: leaf");
         }
 
-        if (pte.0 & PTE_V) ==0 && pte.0 & (PTE_R|PTE_W|PTE_X) == 0 {
+        if (pte.0 & PTE_V) == 0 && pte.0 & (PTE_R | PTE_W | PTE_X) == 0 {
             // this PTE points to a lower-level page table.
             let child_pgtbl = unsafe { (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap() };
             freewalk(child_pgtbl);
@@ -283,7 +310,7 @@ fn freewalk(pagetable: &mut PageTable) {
 // then free page-table pages.
 pub fn uvmfree(pagetable: &mut PageTable, sz: usize) {
     if sz > 0 {
-        uvmunmap(pagetable, 0, PGROUNDUP!(sz)/PGSIZE, true);
+        uvmunmap(pagetable, 0, PGROUNDUP!(sz) / PGSIZE, true);
     }
     freewalk(pagetable);
 }
@@ -304,8 +331,17 @@ pub fn uvmalloc(page_table: &mut PageTable, oldsz: usize, newsz: usize, xperm: u
             return 0;
         }
         memset(mem, 0, PGSIZE);
-        if mappages(page_table, a, PGSIZE, mem.expose_addr(), PTE_R|PTE_U|xperm) != 0 {
-            unsafe { KMEM.kfree(mem); }
+        if mappages(
+            page_table,
+            a,
+            PGSIZE,
+            mem.expose_addr(),
+            PTE_R | PTE_U | xperm,
+        ) != 0
+        {
+            unsafe {
+                KMEM.kfree(mem);
+            }
         }
         uvmdealloc(page_table, a, oldsz);
         return 0;
@@ -358,7 +394,7 @@ pub(crate) fn uvmcopy(old: &mut PageTable, new: &mut PageTable, sz: usize) -> i8
         memmove(mem, pa as *mut u8, PGSIZE);
 
         let flags = PTE_FLAGS!(pte.0);
-        if mappages(new, i,  mem.expose_addr(), PGSIZE, flags) != 0 {
+        if mappages(new, i, mem.expose_addr(), PGSIZE, flags) != 0 {
             unsafe { KMEM.kfree(mem) };
             uvmunmap(new, 0, i / PGSIZE, true);
             return -1;
@@ -367,7 +403,6 @@ pub(crate) fn uvmcopy(old: &mut PageTable, new: &mut PageTable, sz: usize) -> i8
 
     return 0;
 }
-
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
@@ -384,7 +419,7 @@ pub fn uvmclear(page_table: &mut PageTable, va: usize) {
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 pub fn copyout(page_table: &mut PageTable, dstva: usize, src: *const u8, len: usize) -> i8 {
-    let mut va0= 0;
+    let mut va0 = 0;
     let mut n = 0;
     let mut len = len;
     let mut dstva = dstva;

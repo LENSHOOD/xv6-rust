@@ -1,8 +1,8 @@
-use core::arch::asm;
-use crate::{CLINT_MTIMECMP, kmain};
 use crate::memlayout::CLINT_MTIME;
-use crate::riscv::*;
 use crate::param::*;
+use crate::riscv::*;
+use crate::{kmain, CLINT_MTIMECMP};
+use core::arch::asm;
 
 static TIMER_SCRATCH: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
 
@@ -12,8 +12,7 @@ struct Stack0Aligned([u8; 4096 * NCPU]);
 static stack0: Stack0Aligned = Stack0Aligned([0; 4096 * NCPU]);
 
 #[no_mangle]
-extern "C"
-fn start() {
+extern "C" fn start() {
     // set M Previous Privilege mode to Supervisor, for mret.
     let mut x = r_mstatus();
     x &= !MSTATUS_MPP_MASK;
@@ -45,9 +44,7 @@ fn start() {
     w_tp(id);
 
     // switch to supervisor mode and jump to main().
-    unsafe {
-        asm!("mret")
-    }
+    unsafe { asm!("mret") }
 }
 
 extern "C" {
@@ -61,7 +58,8 @@ fn timerinit() {
     // ask the CLINT for a timer interrupt.
     let interval = 1000000; // cycles; about 1/10th second in qemu.
     unsafe {
-        (CLINT_MTIMECMP!(id) as *mut u64).write_volatile((CLINT_MTIME as *const u64).read_volatile() + interval)
+        (CLINT_MTIMECMP!(id) as *mut u64)
+            .write_volatile((CLINT_MTIME as *const u64).read_volatile() + interval)
     }
 
     // prepare information in scratch[] for timervec.

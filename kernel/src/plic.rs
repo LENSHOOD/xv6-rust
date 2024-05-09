@@ -3,15 +3,15 @@
 //
 
 use crate::memlayout::{PLIC, UART0_IRQ, VIRTIO0_IRQ};
-use crate::{PLIC_SCLAIM, PLIC_SENABLE, PLIC_SPRIORITY, proc};
 use crate::proc::cpuid;
+use crate::{proc, PLIC_SCLAIM, PLIC_SENABLE, PLIC_SPRIORITY};
 
 pub(crate) fn plicinit() {
     unsafe {
         // set desired IRQ priorities non-zero (otherwise disabled).
-        let uart_irq_ref = ((PLIC + UART0_IRQ*4) as * mut u32).as_mut().unwrap();
+        let uart_irq_ref = ((PLIC + UART0_IRQ * 4) as *mut u32).as_mut().unwrap();
         *(uart_irq_ref) = 1;
-        let virtio_irq_ref = ((PLIC + VIRTIO0_IRQ*4) as * mut u32).as_mut().unwrap();
+        let virtio_irq_ref = ((PLIC + VIRTIO0_IRQ * 4) as *mut u32).as_mut().unwrap();
         *(virtio_irq_ref) = 1;
     }
 }
@@ -22,11 +22,11 @@ pub(crate) fn plicinithart() {
     unsafe {
         // set enable bits for this hart's S-mode
         // for the uart and virtio disk.
-        let senable_ref = (PLIC_SENABLE!(hart) as * mut u32).as_mut().unwrap();
+        let senable_ref = (PLIC_SENABLE!(hart) as *mut u32).as_mut().unwrap();
         *(senable_ref) = (1 << UART0_IRQ) | (1 << VIRTIO0_IRQ);
 
         // set this hart's S-mode priority threshold to 0.
-        let spriority_ref = (PLIC_SPRIORITY!(hart) as * mut u32).as_mut().unwrap();
+        let spriority_ref = (PLIC_SPRIORITY!(hart) as *mut u32).as_mut().unwrap();
         *(spriority_ref) = 0;
     }
 }
@@ -41,5 +41,7 @@ pub(crate) fn plic_claim() -> i32 {
 // tell the PLIC we've served this IRQ.
 pub(crate) fn plic_complete(irq: i32) {
     let hart = cpuid();
-    unsafe { *(PLIC_SCLAIM!(hart) as *mut i32) = irq; }
+    unsafe {
+        *(PLIC_SCLAIM!(hart) as *mut i32) = irq;
+    }
 }

@@ -67,13 +67,12 @@
 // dev, and inum.  One must hold ip->lock in order to
 // read or write that inode's ip->valid, ip->size, ip->type, &c.
 
-use core::cmp::min;
-use core::mem;
-use core::mem::size_of_val;
 use crate::bio::{bread, brelse};
 use crate::file::INode;
-use crate::fs::{BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
-use crate::{BBLOCK, IBLOCK, printf};
+use crate::fs::{
+    DINode, Dirent, SuperBlock, BPB, BSIZE, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT,
+    ROOTINO,
+};
 use crate::log::{initlog, log_write};
 use crate::param::{NINODE, ROOTDEV};
 use crate::proc::{either_copyin, either_copyout, myproc};
@@ -81,6 +80,10 @@ use crate::spinlock::Spinlock;
 use crate::stat::FileType;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
 use crate::string::memset;
+use crate::{printf, BBLOCK, IBLOCK};
+use core::cmp::min;
+use core::mem;
+use core::mem::size_of_val;
 
 struct ITable {
     lock: Spinlock,
@@ -112,7 +115,8 @@ impl SuperBlock {
         let bp = bread(dev, 1);
 
         let sz = size_of_val(self);
-        let raw = unsafe { core::slice::from_raw_parts(self as *const SuperBlock as *const u8, sz) };
+        let raw =
+            unsafe { core::slice::from_raw_parts(self as *const SuperBlock as *const u8, sz) };
         bp.data[..sz].clone_from_slice(raw);
         brelse(bp);
     }
@@ -144,9 +148,8 @@ impl INode {
             let bp = bread(self.dev, unsafe { IBLOCK!(self.inum, SB) });
             let ino_sz = mem::size_of::<DINode>();
             let offset = ino_sz * (self.inum % IPB) as usize;
-            let (_head, body, _tail) = unsafe {
-                bp.data[offset..offset + ino_sz].align_to::<DINode>()
-            };
+            let (_head, body, _tail) =
+                unsafe { bp.data[offset..offset + ino_sz].align_to::<DINode>() };
             let dip = &body[0];
             self.file_type = dip.file_type;
             self.major = dip.major;
@@ -248,9 +251,8 @@ impl INode {
         let bp = bread(self.dev, unsafe { IBLOCK!(self.inum, SB) });
         let ino_sz = mem::size_of::<DINode>();
         let offset = ino_sz * (self.inum % IPB) as usize;
-        let (_head, body, _tail) = unsafe {
-            bp.data[offset..offset + ino_sz].align_to_mut::<DINode>()
-        };
+        let (_head, body, _tail) =
+            unsafe { bp.data[offset..offset + ino_sz].align_to_mut::<DINode>() };
         let dip = &mut body[0];
         dip.file_type = self.file_type;
         dip.major = self.major;
@@ -302,7 +304,7 @@ impl INode {
             addr = a[bn];
             if addr == 0 {
                 addr = balloc(self.dev);
-                if addr != 0{
+                if addr != 0 {
                     a[bn] = addr;
                     log_write(bp);
                 }
@@ -318,7 +320,13 @@ impl INode {
     // Caller must hold ip->lock.
     // If user_dst==1, then dst is a user virtual address;
     // otherwise, dst is a kernel address.
-    pub(crate) fn readi<T>(self: &mut Self, is_user_dst: bool, dst: *mut T, off: u32, n: usize) -> usize {
+    pub(crate) fn readi<T>(
+        self: &mut Self,
+        is_user_dst: bool,
+        dst: *mut T,
+        off: u32,
+        n: usize,
+    ) -> usize {
         let mut n = n as u32;
         if off > self.size || off + n < off {
             return 0;
@@ -335,14 +343,20 @@ impl INode {
             if tot >= n {
                 break;
             }
-            let addr = self.bmap(off/ BSIZE as u32);
+            let addr = self.bmap(off / BSIZE as u32);
             if addr == 0 {
                 break;
             }
 
             let bp = bread(self.dev, addr);
             let m = min(n - tot, (BSIZE - off as usize % BSIZE) as u32);
-            if either_copyout(is_user_dst, dst as *mut u8, &bp.data[off as usize % BSIZE] as *const u8, m as usize) == -1 {
+            if either_copyout(
+                is_user_dst,
+                dst as *mut u8,
+                &bp.data[off as usize % BSIZE] as *const u8,
+                m as usize,
+            ) == -1
+            {
                 brelse(bp);
                 tot = 0;
                 break;
@@ -364,7 +378,13 @@ impl INode {
     // Returns the number of bytes successfully written.
     // If the return value is less than the requested n,
     // there was an error of some kind.
-    pub(crate) fn writei<T>(self: &mut Self, is_user_src: bool, src: *mut T, off: u32, n: usize) -> isize {
+    pub(crate) fn writei<T>(
+        self: &mut Self,
+        is_user_src: bool,
+        src: *mut T,
+        off: u32,
+        n: usize,
+    ) -> isize {
         let n = n as u32;
         if off > self.size || (off + n) < off {
             return -1;
@@ -389,7 +409,13 @@ impl INode {
 
             let bp = bread(self.dev, addr);
             let m = min(n - tot, (BSIZE - off as usize % BSIZE) as u32);
-            if either_copyin(&mut bp.data[off as usize % BSIZE] as *mut u8, is_user_src, src as *const u8, m as usize) == -1 {
+            if either_copyin(
+                &mut bp.data[off as usize % BSIZE] as *mut u8,
+                is_user_src,
+                src as *const u8,
+                m as usize,
+            ) == -1
+            {
                 brelse(bp);
                 break;
             }
@@ -412,7 +438,6 @@ impl INode {
 
         return tot as isize;
     }
-
 }
 
 // Init fs
@@ -434,12 +459,11 @@ pub(crate) fn nameiparent<'a>(path: &str) -> Option<&'a mut INode> {
     namex(path, false)
 }
 
-
 // Look up and return the inode for a path name.
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
-fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode>{
+fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode> {
     let mut ip = if path == "/" {
         iget(ROOTDEV, ROOTINO)
     } else {
@@ -490,7 +514,8 @@ pub(crate) fn ialloc<'a>(dev: u32, file_type: FileType) -> Option<&'a mut INode>
         let bp = bread(dev, unsafe { IBLOCK!(inum, SB) });
         let (_head, body, _tail) = unsafe {
             let ino_sz = mem::size_of::<DINode>();
-            bp.data[ino_sz * (inum % IPB) as usize..ino_sz * ((inum + 1) % IPB) as usize].align_to_mut::<DINode>()
+            bp.data[ino_sz * (inum % IPB) as usize..ino_sz * ((inum + 1) % IPB) as usize]
+                .align_to_mut::<DINode>()
         };
         let dip = &mut body[0];
         if dip.file_type == NO_TYPE {
@@ -505,7 +530,6 @@ pub(crate) fn ialloc<'a>(dev: u32, file_type: FileType) -> Option<&'a mut INode>
     printf!("ialloc: no inodes\n");
     return None;
 }
-
 
 // Find the inode with number inum on device dev
 // and return the in-memory copy. Does not lock
@@ -525,7 +549,7 @@ fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
 
             // Remember empty slot.
             if empty.is_none() && ip.ref_cnt == 0 {
-               empty = Some(ip);
+                empty = Some(ip);
             }
         }
 
@@ -630,7 +654,6 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Optio
 
     let sz = mem::size_of::<Dirent>();
     for off in (0..dp.size).step_by(sz) {
-
         if dp.readi(false, &mut de as *mut Dirent, off, sz) != sz {
             panic!("dirlookup read");
         }
@@ -662,7 +685,10 @@ pub(crate) fn dirlink(dp: &mut INode, name: &str, inum: u16) -> Option<()> {
     }
 
     // Look for an empty dirent.
-    let de = &mut Dirent { inum: 0, name: [0; DIRSIZ] };
+    let de = &mut Dirent {
+        inum: 0,
+        name: [0; DIRSIZ],
+    };
     let sz = mem::size_of::<Dirent>();
     let mut off = 0;
     loop {
@@ -686,12 +712,11 @@ pub(crate) fn dirlink(dp: &mut INode, name: &str, inum: u16) -> Option<()> {
     de.inum = inum;
 
     if dp.writei(false, de as *mut Dirent, off, sz) == 0 {
-       return None
+        return None;
     }
 
     return Some(());
 }
-
 
 // Zero a block.
 fn bzero(dev: u32, bno: u32) {
@@ -717,7 +742,7 @@ fn balloc(dev: u32) -> u32 {
 
             let m = 1 << (bi % 8);
             if (bp.data[bi as usize / 8] & m) == 0 {
-                bp.data[bi as usize / 8] |= m;  // Mark block in use.
+                bp.data[bi as usize / 8] |= m; // Mark block in use.
                 log_write(bp);
                 brelse(bp);
                 bzero(dev, b + bi);

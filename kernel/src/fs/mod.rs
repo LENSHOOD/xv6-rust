@@ -3,11 +3,11 @@
 
 pub(crate) mod fs;
 
-use core::mem;
 use crate::stat::FileType;
+use core::mem;
 
-pub const ROOTINO: u32 = 1;   // root i-number
-pub const BSIZE: usize = 4096;  // block size
+pub const ROOTINO: u32 = 1; // root i-number
+pub const BSIZE: usize = 4096; // block size
 
 // Disk layout:
 // [ boot block | super block | log | inode blocks |
@@ -16,14 +16,14 @@ pub const BSIZE: usize = 4096;  // block size
 // mkfs computes the super block and builds an initial file system. The
 // super block describes the disk layout:
 pub struct SuperBlock {
-    magic: u32, // Must be FSMAGIC
-    size: u32, // Size of file system image (blocks)
-    nblocks: u32, // Number of data blocks
-    ninodes: u32, // Number of inodes.
-    pub(crate) nlog: u32, // Number of log blocks
+    magic: u32,               // Must be FSMAGIC
+    size: u32,                // Size of file system image (blocks)
+    nblocks: u32,             // Number of data blocks
+    ninodes: u32,             // Number of inodes.
+    pub(crate) nlog: u32,     // Number of log blocks
     pub(crate) logstart: u32, // Block number of first log block
-    inodestart: u32, // Block number of first inode block
-    bmapstart: u32, // Block number of first free map block
+    inodestart: u32,          // Block number of first inode block
+    bmapstart: u32,           // Block number of first free map block
 }
 
 const FSMAGIC: u32 = 0x10203040;
@@ -33,11 +33,11 @@ const MAXFILE: usize = NDIRECT + NINDIRECT;
 
 // On-disk inode structure
 struct DINode {
-    pub(crate) file_type: FileType, // File type
-    pub(crate) major: i16, // Major device number (T_DEVICE only)
-    pub(crate) minor: i16, // Minor device number (T_DEVICE only)
-    pub(crate) nlink: i16, // Number of links to inode in file system
-    pub(crate) size: u32, // Size of file (bytes)
+    pub(crate) file_type: FileType,       // File type
+    pub(crate) major: i16,                // Major device number (T_DEVICE only)
+    pub(crate) minor: i16,                // Minor device number (T_DEVICE only)
+    pub(crate) nlink: i16,                // Number of links to inode in file system
+    pub(crate) size: u32,                 // Size of file (bytes)
     pub(crate) addrs: [u32; NDIRECT + 1], // Data block addresses
 }
 
@@ -70,4 +70,3 @@ struct Dirent {
     inum: u16,
     name: [u8; DIRSIZ],
 }
-

@@ -1,5 +1,5 @@
-mod sysfile;
 pub(crate) mod syscall;
+mod sysfile;
 mod sysproc;
 
 // System call numbers
@@ -12,7 +12,7 @@ pub const SYS_kill: usize = 6;
 pub const SYS_exec: usize = 7;
 pub const SYS_fstat: usize = 8;
 pub const SYS_chdir: usize = 9;
-pub const SYS_dup: usize =  10;
+pub const SYS_dup: usize = 10;
 pub const SYS_getpid: usize = 11;
 pub const SYS_sbrk: usize = 12;
 pub const SYS_sleep: usize = 13;

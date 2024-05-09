@@ -1,11 +1,11 @@
-use core::ptr::NonNull;
 use crate::fs::BSIZE;
 use crate::sleeplock::Sleeplock;
+use core::ptr::NonNull;
 
 #[derive(Copy, Clone)]
 pub struct Buf {
-    pub(crate) valid: bool,   // has data been read from disk?
-    pub(crate) disk: bool,    // does disk "own" buf?
+    pub(crate) valid: bool, // has data been read from disk?
+    pub(crate) disk: bool,  // does disk "own" buf?
     pub(crate) dev: u32,
     pub(crate) blockno: u32,
     pub(crate) lock: Sleeplock,

@@ -1,8 +1,8 @@
-use core::fmt::{Error, Write};
-use crate::uart::UART_INSTANCE;
-use crate::file::{CONSOLE, Devsw, DEVSW};
-use crate::proc::{either_copyin, either_copyout, killed, myproc, sleep, wakeup, procdump};
+use crate::file::{Devsw, CONSOLE, DEVSW};
+use crate::proc::{either_copyin, either_copyout, killed, myproc, procdump, sleep, wakeup};
 use crate::spinlock::Spinlock;
+use crate::uart::UART_INSTANCE;
+use core::fmt::{Error, Write};
 
 pub(crate) static mut CONSOLE_INSTANCE: Console = Console::create();
 
@@ -12,11 +12,10 @@ const INPUT_BUF_SIZE: usize = 128;
 pub struct Console {
     lock: Spinlock,
     // input
-
     buf: [u8; INPUT_BUF_SIZE],
-    r: usize,  // Read index
-    w: usize,  // Write index
-    e: usize,  // Edit index
+    r: usize, // Read index
+    w: usize, // Write index
+    e: usize, // Edit index
 }
 
 impl Console {
@@ -30,10 +29,11 @@ impl Console {
         }
     }
     pub fn init() {
-
         // connect read and write system calls
         // to consoleread and consolewrite.
-        unsafe { DEVSW[CONSOLE] = Some(&mut CONSOLE_INSTANCE as *mut Console); }
+        unsafe {
+            DEVSW[CONSOLE] = Some(&mut CONSOLE_INSTANCE as *mut Console);
+        }
     }
 
     // send one character to the uart.
@@ -65,34 +65,36 @@ impl Console {
             // Print process list.
             'P' => procdump(),
             // Kill line.
-            'U' => while self.e != self.w && self.buf[(self.e - 1) % INPUT_BUF_SIZE] != '\n' as u8 {
-                        self.e -= 1;
-                        self.putc(BACKSPACE);
-                    },
+            'U' => {
+                while self.e != self.w && self.buf[(self.e - 1) % INPUT_BUF_SIZE] != '\n' as u8 {
+                    self.e -= 1;
+                    self.putc(BACKSPACE);
+                }
+            }
             // Backspace | Delete key
-            'H' | '\x7f' => if self.e != self.w {
-                                self.e -= 1;
-                                self.putc(BACKSPACE);
-                            },
-            _ => if c != 0 && self.e-self.r < INPUT_BUF_SIZE {
-                let c = if c as char == '\r' {
-                    '\n' as u8
-                } else {
-                    c
-                };
+            'H' | '\x7f' => {
+                if self.e != self.w {
+                    self.e -= 1;
+                    self.putc(BACKSPACE);
+                }
+            }
+            _ => {
+                if c != 0 && self.e - self.r < INPUT_BUF_SIZE {
+                    let c = if c as char == '\r' { '\n' as u8 } else { c };
 
-                // echo back to the user.
-                self.putc(c as u16);
+                    // echo back to the user.
+                    self.putc(c as u16);
 
-                // store for consumption by consoleread().
-                self.e += 1;
-                self.buf[self.e % INPUT_BUF_SIZE] = c;
+                    // store for consumption by consoleread().
+                    self.e += 1;
+                    self.buf[self.e % INPUT_BUF_SIZE] = c;
 
-                if c as char == '\n' || c as char == 'D' || self.e-self.r == INPUT_BUF_SIZE {
-                    // wake up consoleread() if a whole line (or end-of-file)
-                    // has arrived.
-                    self.w = self.e;
-                    wakeup(&self.r);
+                    if c as char == '\n' || c as char == 'D' || self.e - self.r == INPUT_BUF_SIZE {
+                        // wake up consoleread() if a whole line (or end-of-file)
+                        // has arrived.
+                        self.w = self.e;
+                        wakeup(&self.r);
+                    }
                 }
             }
         }
@@ -142,7 +144,8 @@ impl Devsw for Console {
             self.r += 1;
             c = self.buf[self.r % INPUT_BUF_SIZE];
 
-            if c as char == 'D' {  // end-of-file
+            if c as char == 'D' {
+                // end-of-file
                 if sz < target {
                     // Save ^D for next time, to make sure
                     // caller gets a 0-byte result.
@@ -171,12 +174,12 @@ impl Devsw for Console {
         return (target - sz) as i32;
     }
 
-    fn write(self: &mut Self, is_user_src: bool, src: usize, sz: usize) -> i32  {
+    fn write(self: &mut Self, is_user_src: bool, src: usize, sz: usize) -> i32 {
         let mut cnt = 0;
         for i in 0..sz {
             let mut c = 0u8;
             if either_copyin(&mut c as *mut u8, is_user_src, src as *const u8, 1) == -1 {
-                break
+                break;
             }
             self.putc(c as u16);
             cnt = i;

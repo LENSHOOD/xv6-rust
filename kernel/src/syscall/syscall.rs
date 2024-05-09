@@ -1,12 +1,16 @@
-use core::mem;
-use crate::syscall::sysfile::sys_open;
 use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
-use crate::syscall::{SYS_chdir, SYS_close, SYS_dup, SYS_exec, SYS_exit, SYS_fork, SYS_fstat, SYS_getpid, SYS_kill, SYS_link, SYS_mkdir, SYS_mknod, SYS_open, SYS_pipe, SYS_read, SYS_sbrk, SYS_sleep, SYS_unlink, SYS_uptime, SYS_wait, SYS_write};
+use crate::syscall::sysfile::sys_open;
 use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
 use crate::syscall::sysproc::{sys_exit, sys_fork, sys_wait};
+use crate::syscall::{
+    SYS_chdir, SYS_close, SYS_dup, SYS_exec, SYS_exit, SYS_fork, SYS_fstat, SYS_getpid, SYS_kill,
+    SYS_link, SYS_mkdir, SYS_mknod, SYS_open, SYS_pipe, SYS_read, SYS_sbrk, SYS_sleep, SYS_unlink,
+    SYS_uptime, SYS_wait, SYS_write,
+};
 use crate::vm::{copyin, copyinstr};
+use core::mem;
 
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
@@ -47,15 +51,23 @@ fn argraw(n: u8) -> u64 {
 // Fetch the uint64 at addr from the current process.
 pub(super) fn fetchaddr(addr: usize, ip: &mut usize) -> i32 {
     let p = myproc();
-    if addr >= p.sz || addr+mem::size_of::<usize>() > p.sz { // both tests needed, in case of overflow
+    if addr >= p.sz || addr + mem::size_of::<usize>() > p.sz {
+        // both tests needed, in case of overflow
         return -1;
     }
-    if unsafe { copyin(p.pagetable.unwrap().as_mut().unwrap(), ip as *mut usize as *mut u8, addr, mem::size_of::<usize>())} != 0 {
+    if unsafe {
+        copyin(
+            p.pagetable.unwrap().as_mut().unwrap(),
+            ip as *mut usize as *mut u8,
+            addr,
+            mem::size_of::<usize>(),
+        )
+    } != 0
+    {
         return -1;
     }
     return 0;
 }
-
 
 // Fetch the nul-terminated string at addr from the current process.
 // Returns length of string, not including nul, or -1 for error.
@@ -107,7 +119,12 @@ pub fn syscall() {
         // and store its return value in p->trapframe->a0
         tf.a0 = SYSCALL[num].unwrap()();
     } else {
-        printf!("{} {}: unknown sys call {}\n", p.pid, core::str::from_utf8(&p.name).unwrap(), num);
+        printf!(
+            "{} {}: unknown sys call {}\n",
+            p.pid,
+            core::str::from_utf8(&p.name).unwrap(),
+            num
+        );
         tf.a0 = u64::MAX;
     }
 }

@@ -2,11 +2,11 @@
 
 pub mod stubs;
 
-use core::fmt::Arguments;
-use core::fmt::{Write, Error};
-use core::result::{Result, Result::Ok};
-use core::arch::global_asm;
 use crate::stubs::write;
+use core::arch::global_asm;
+use core::fmt::Arguments;
+use core::fmt::{Error, Write};
+use core::result::{Result, Result::Ok};
 
 global_asm!(include_str!("usys.S"));
 
@@ -33,7 +33,9 @@ impl Write for Printer {
     // which looks like:
     fn write_str(&mut self, s: &str) -> Result<(), Error> {
         for c in s.bytes() {
-            unsafe { write(self.0, &c as *const u8, 1); }
+            unsafe {
+                write(self.0, &c as *const u8, 1);
+            }
         }
         // Return that we succeeded.
         Ok(())

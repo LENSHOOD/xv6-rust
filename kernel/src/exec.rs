@@ -1,14 +1,14 @@
-use core::mem;
-use crate::elf::{ELF_MAGIC, ELF_PROG_LOAD, ElfHeader, ProgramHeader};
+use crate::elf::{ElfHeader, ProgramHeader, ELF_MAGIC, ELF_PROG_LOAD};
 use crate::file::INode;
 use crate::fs::fs::namei;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXARG, MAXPATH};
-use crate::PGROUNDUP;
 use crate::proc::{myproc, proc_freepagetable, proc_pagetable};
 use crate::riscv::{PageTable, PGSIZE, PTE_W, PTE_X};
 use crate::string::strlen;
 use crate::vm::{copyout, uvmalloc, uvmclear, walkaddr};
+use crate::PGROUNDUP;
+use core::mem;
 
 fn flags2perm(flags: u32) -> usize {
     let mut perm = 0;
@@ -76,7 +76,12 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
 
-        let sz1 = uvmalloc(page_table, sz, (ph.vaddr + ph.memsz) as usize, flags2perm(ph.flags));
+        let sz1 = uvmalloc(
+            page_table,
+            sz,
+            (ph.vaddr + ph.memsz) as usize,
+            flags2perm(ph.flags),
+        );
         if sz1 == 0 {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
@@ -97,12 +102,12 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     // Make the first inaccessible as a stack guard.
     // Use the second as the user stack.
     sz = PGROUNDUP!(sz);
-    let sz1 = uvmalloc(page_table, sz, sz + 2*PGSIZE, PTE_W);
+    let sz1 = uvmalloc(page_table, sz, sz + 2 * PGSIZE, PTE_W);
     if sz1 == 0 {
-        return goto_bad(Some(page_table), sz, Some(ip));;
+        return goto_bad(Some(page_table), sz, Some(ip));
     }
     sz = sz1;
-    uvmclear(page_table, sz-2*PGSIZE);
+    uvmclear(page_table, sz - 2 * PGSIZE);
 
     let mut sp = sz;
     let stackbase = sp - PGSIZE;
@@ -111,7 +116,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     // Push argument strings, prepare rest of stack in ustack.
     loop {
         if argv[argc].is_none() {
-            break
+            break;
         }
         let curr_argv = argv[argc].unwrap();
 
@@ -134,12 +139,18 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     ustack[argc] = 0;
 
     // push the array of argv[] pointers.
-    sp -= (argc+1) * mem::size_of::<u64>();
+    sp -= (argc + 1) * mem::size_of::<u64>();
     sp -= sp % 16;
     if sp < stackbase {
         return goto_bad(Some(page_table), sz, Some(ip));
     }
-    if copyout(page_table, sp, &ustack as *const usize as *const u8, (argc+1)*mem::size_of::<u64>()) < 0 {
+    if copyout(
+        page_table,
+        sp,
+        &ustack as *const usize as *const u8,
+        (argc + 1) * mem::size_of::<u64>(),
+    ) < 0
+    {
         return goto_bad(Some(page_table), sz, Some(ip));
     }
 
@@ -158,7 +169,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     let oldpagetable = unsafe { p.pagetable.unwrap().as_mut().unwrap() };
     p.pagetable = Some(page_table as *mut PageTable);
     p.sz = sz;
-    tf.epc = elf.entry;  // initial program counter = main
+    tf.epc = elf.entry; // initial program counter = main
     tf.sp = sp as u64; // initial stack pointer
     proc_freepagetable(oldpagetable, oldsz);
 

@@ -39,10 +39,10 @@ const VIRTIO_CONFIG_S_DRIVER_OK: usize = 4;
 const VIRTIO_CONFIG_S_FEATURES_OK: usize = 8;
 
 // device feature bits
-const VIRTIO_BLK_F_RO: usize = 5;	/* Disk is read-only */
-const VIRTIO_BLK_F_SCSI: usize = 7;	/* Supports scsi command passthru */
-const VIRTIO_BLK_F_CONFIG_WCE: usize = 11;	/* Writeback mode available in config */
-const VIRTIO_BLK_F_MQ: usize = 12;	/* support more than one vq */
+const VIRTIO_BLK_F_RO: usize = 5; /* Disk is read-only */
+const VIRTIO_BLK_F_SCSI: usize = 7; /* Supports scsi command passthru */
+const VIRTIO_BLK_F_CONFIG_WCE: usize = 11; /* Writeback mode available in config */
+const VIRTIO_BLK_F_MQ: usize = 12; /* support more than one vq */
 const VIRTIO_F_ANY_LAYOUT: usize = 27;
 const VIRTIO_RING_F_INDIRECT_DESC: usize = 28;
 const VIRTIO_RING_F_EVENT_IDX: usize = 29;
@@ -65,8 +65,8 @@ const VRING_DESC_F_WRITE: u16 = 2; // device writes (vs read)
 // the (entire) avail ring, from the spec.
 #[derive(Copy, Clone)]
 struct VirtqAvail {
-    flags: u16, // always zero
-    idx: u16,   // driver will write ring[idx] next
+    flags: u16,       // always zero
+    idx: u16,         // driver will write ring[idx] next
     ring: [u16; NUM], // descriptor numbers of chain heads
     unused: u16,
 }
@@ -75,7 +75,7 @@ struct VirtqAvail {
 // device tells the driver about completed requests.
 #[derive(Copy, Clone)]
 struct VirtqUsedElem {
-    id: u32,   // index of start of completed descriptor chain
+    id: u32, // index of start of completed descriptor chain
     len: u32,
 }
 

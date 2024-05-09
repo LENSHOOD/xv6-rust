@@ -1,9 +1,9 @@
-use core::ptr;
 use crate::memlayout::PHYSTOP;
-use crate::PGROUNDUP;
 use crate::riscv::PGSIZE;
 use crate::spinlock::Spinlock;
 use crate::string::memset;
+use crate::PGROUNDUP;
+use core::ptr;
 
 extern "C" {
     // first address after kernel.
@@ -23,7 +23,6 @@ pub struct KMem {
 pub static mut KMEM: KMem = KMem::create();
 
 impl KMem {
-
     const fn create() -> Self {
         Self {
             lock: Spinlock::init_lock("kmem"),
@@ -50,11 +49,13 @@ impl KMem {
     /// which normally should have been returned by a
     /// call to kalloc().  (The exception is when
     /// initializing the allocator; see kinit above.)
-    pub fn kfree<T: Sized>(self: &mut Self, pa: *mut T)
-    {
+    pub fn kfree<T: Sized>(self: &mut Self, pa: *mut T) {
         unsafe {
             let pa_uszie = pa as usize;
-            if pa_uszie % PGSIZE != 0 || pa_uszie < ((&end) as *const u8) as usize  || pa_uszie >= PHYSTOP {
+            if pa_uszie % PGSIZE != 0
+                || pa_uszie < ((&end) as *const u8) as usize
+                || pa_uszie >= PHYSTOP
+            {
                 panic!("kfree");
             }
         }

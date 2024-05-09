@@ -7,41 +7,41 @@
 extern crate alloc;
 
 mod asm;
-mod riscv;
+mod bio;
+mod buf;
+mod console;
+mod elf;
+mod exec;
+mod file;
+mod fs;
+mod kalloc;
+mod log;
 mod memlayout;
 mod param;
-mod uart;
-mod start;
-mod spinlock;
-mod sleeplock;
-mod proc;
-mod console;
-mod printf;
-mod kalloc;
-mod string;
-mod vm;
-mod trap;
-mod plic;
-mod buf;
-mod bio;
-mod fs;
-mod file;
 mod pipe;
+mod plic;
+mod printf;
+mod proc;
+mod riscv;
+mod sleeplock;
+mod spinlock;
+mod start;
 mod stat;
-mod virtio;
-mod log;
+mod string;
 pub mod syscall;
-mod exec;
-mod elf;
+mod trap;
+mod uart;
+mod virtio;
+mod vm;
 
-use core::alloc::{GlobalAlloc, Layout};
-use core::sync::atomic::{AtomicBool, Ordering};
 use crate::console::Console;
 use crate::kalloc::KMem;
 use crate::printf::Printer;
 use crate::proc::cpuid;
 use crate::riscv::__sync_synchronize;
 use crate::uart::Uart;
+use core::alloc::{GlobalAlloc, Layout};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS
@@ -61,24 +61,20 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
             p.file(),
             info.message().unwrap()
         );
-    }
-    else {
+    } else {
         printf!("no information available.\n");
     }
     abort();
 }
 
 #[no_mangle]
-extern "C"
-fn abort() -> ! {
+extern "C" fn abort() -> ! {
     loop {
-        unsafe {
-            core::arch::asm!("wfi")
-        }
+        unsafe { core::arch::asm!("wfi") }
     }
 }
 
-struct NoopAllocator{}
+struct NoopAllocator {}
 unsafe impl Sync for NoopAllocator {}
 unsafe impl GlobalAlloc for NoopAllocator {
     unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
@@ -90,7 +86,7 @@ unsafe impl GlobalAlloc for NoopAllocator {
     }
 }
 #[global_allocator]
-static ALLOCATOR: NoopAllocator = NoopAllocator{};
+static ALLOCATOR: NoopAllocator = NoopAllocator {};
 
 static STARTED: AtomicBool = AtomicBool::new(false);
 
@@ -114,7 +110,7 @@ pub extern "C" fn kmain() {
         // }
 
         vm::kvminit(); // create kernel page table
-        // debug_log!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
+                       // debug_log!("{:?}", vm::KERNEL_PAGETABLE.unwrap());
         debug_log!("Virtual memory initialized.\n");
 
         vm::kvminithart(); // turn on paging
@@ -152,9 +148,9 @@ pub extern "C" fn kmain() {
 
         __sync_synchronize();
         printf!("hart {} starting\n", cpuid());
-        vm::kvminithart();    // turn on paging
-        trap::trapinithart();   // install kernel trap vector
-        plic::plicinithart();    // ask PLIC for device interrupts
+        vm::kvminithart(); // turn on paging
+        trap::trapinithart(); // install kernel trap vector
+        plic::plicinithart(); // ask PLIC for device interrupts
     }
 
     proc::scheduler();

@@ -1,8 +1,8 @@
-use core::sync::atomic::Ordering::Relaxed;
 use crate::console::CONSOLE_INSTANCE;
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::PANICKED;
+use core::sync::atomic::Ordering::Relaxed;
 
 // the UART control registers are memory-mapped
 // at address UART0. this macro returns the
@@ -18,38 +18,34 @@ macro_rules! Reg {
 // some have different meanings for
 // read vs write.
 // see http://byterunner.com/16550.html
-pub const RHR: u8 = 0;                 // receive holding register (for input bytes)
-pub const THR: u8 = 0;                 // transmit holding register (for output bytes)
-pub const IER: u8 = 1;                 // interrupt enable register
-pub const IER_RX_ENABLE: u8 = 1<<0;
-pub const IER_TX_ENABLE: u8 = 1<<1;
-pub const FCR: u8 = 2;                 // FIFO control register
-pub const FCR_FIFO_ENABLE: u8 = 1<<0;
-pub const FCR_FIFO_CLEAR: u8 = 3<<1;   // clear the content of the two FIFOs
-pub const ISR: u8 = 2;                 // interrupt status register
-pub const LCR: u8 = 3;                 // line control register
-pub const LCR_EIGHT_BITS: u8 = 3<<0;
-pub const LCR_BAUD_LATCH: u8 = 1<<7;   // special mode to set baud rate
-pub const LSR: u8 = 5;                 // line status register
-pub const LSR_RX_READY: u8 = 1<<0;     // input is waiting to be read from RHR
-pub const LSR_TX_IDLE: u8 = 1<<5;      // THR can accept another character to send
+pub const RHR: u8 = 0; // receive holding register (for input bytes)
+pub const THR: u8 = 0; // transmit holding register (for output bytes)
+pub const IER: u8 = 1; // interrupt enable register
+pub const IER_RX_ENABLE: u8 = 1 << 0;
+pub const IER_TX_ENABLE: u8 = 1 << 1;
+pub const FCR: u8 = 2; // FIFO control register
+pub const FCR_FIFO_ENABLE: u8 = 1 << 0;
+pub const FCR_FIFO_CLEAR: u8 = 3 << 1; // clear the content of the two FIFOs
+pub const ISR: u8 = 2; // interrupt status register
+pub const LCR: u8 = 3; // line control register
+pub const LCR_EIGHT_BITS: u8 = 3 << 0;
+pub const LCR_BAUD_LATCH: u8 = 1 << 7; // special mode to set baud rate
+pub const LSR: u8 = 5; // line status register
+pub const LSR_RX_READY: u8 = 1 << 0; // input is waiting to be read from RHR
+pub const LSR_TX_IDLE: u8 = 1 << 5; // THR can accept another character to send
 pub const UART_TX_BUF_SIZE: usize = 32;
 
 #[macro_export]
 macro_rules! ReadReg {
     ( $reg:expr ) => {
-        unsafe {
-            ($crate::Reg!($reg) as *mut u8).read_volatile()
-        }
+        unsafe { ($crate::Reg!($reg) as *mut u8).read_volatile() }
     };
 }
 
 #[macro_export]
 macro_rules! WriteReg {
     ( $reg:expr, $val:expr ) => {
-        unsafe {
-            ($crate::Reg!($reg) as *mut u8).write_volatile($val)
-        }
+        unsafe { ($crate::Reg!($reg) as *mut u8).write_volatile($val) }
     };
 }
 
@@ -174,7 +170,7 @@ impl Uart {
             ReadReg!(RHR) as i8
         } else {
             -1
-        }
+        };
     }
 
     /// handle a uart interrupt, raised because input has
@@ -187,7 +183,9 @@ impl Uart {
             if c == -1 {
                 break;
             }
-            unsafe { _ = &mut CONSOLE_INSTANCE.consoleintr(c as u8); }
+            unsafe {
+                _ = &mut CONSOLE_INSTANCE.consoleintr(c as u8);
+            }
         }
 
         // send buffered characters.

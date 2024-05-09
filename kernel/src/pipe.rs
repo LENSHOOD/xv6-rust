@@ -1,5 +1,5 @@
 use crate::kalloc::KMEM;
-use crate::proc::{myproc, sleep, wakeup, killed};
+use crate::proc::{killed, myproc, sleep, wakeup};
 use crate::spinlock::Spinlock;
 use crate::vm::copyin;
 
@@ -7,9 +7,9 @@ const PIPESIZE: usize = 512;
 pub struct Pipe {
     lock: Spinlock,
     data: [u8; PIPESIZE],
-    nread: u32, // number of bytes read
-    nwrite: u32, // number of bytes written
-    readopen: bool, // read fd is still open
+    nread: u32,      // number of bytes read
+    nwrite: u32,     // number of bytes written
+    readopen: bool,  // read fd is still open
     writeopen: bool, // write fd is still open
 }
 
@@ -25,7 +25,9 @@ impl Pipe {
         }
         if !self.readopen && !self.writeopen {
             self.lock.release();
-            unsafe { KMEM.kfree(self as *mut Pipe); }
+            unsafe {
+                KMEM.kfree(self as *mut Pipe);
+            }
         } else {
             self.lock.release();
         }
@@ -43,7 +45,8 @@ impl Pipe {
                 return -1;
             }
 
-            if self.nwrite == self.nread + PIPESIZE as u32 { //DOC: pipewrite-full
+            if self.nwrite == self.nread + PIPESIZE as u32 {
+                //DOC: pipewrite-full
                 wakeup(&self.nread);
                 sleep(&self.nwrite, &mut self.lock);
             } else {

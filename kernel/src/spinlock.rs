@@ -1,13 +1,15 @@
-use crate::proc::{Cpu, mycpu};
-use crate::riscv::{__sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on};
+use crate::proc::{mycpu, Cpu};
+use crate::riscv::{
+    __sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on,
+};
 
 #[derive(Copy, Clone)]
 pub struct Spinlock {
-    locked: u64,             // Is the lock held?
+    locked: u64, // Is the lock held?
 
     // For debugging:
-    name: &'static str,      // Name of lock.
-    cpu: Option<*mut Cpu<'static>>,   // The cpu holding the lock.
+    name: &'static str,             // Name of lock.
+    cpu: Option<*mut Cpu<'static>>, // The cpu holding the lock.
 }
 
 impl Spinlock {
@@ -44,8 +46,7 @@ impl Spinlock {
     }
 
     // Release the lock.
-    pub fn release(self: &mut Self)
-    {
+    pub fn release(self: &mut Self) {
         if !self.holding() {
             panic!("release");
         }

@@ -4,12 +4,12 @@ use crate::spinlock::Spinlock;
 // Long-term locks for processes
 #[derive(Copy, Clone)]
 pub struct Sleeplock {
-    locked: u64,       // Is the lock held?
+    locked: u64,  // Is the lock held?
     lk: Spinlock, // spinlock protecting this sleep lock
 
     // For debugging:
-    name: &'static str,        // Name of lock.
-    pid: u32           // Process holding lock
+    name: &'static str, // Name of lock.
+    pid: u32,           // Process holding lock
 }
 
 impl Sleeplock {

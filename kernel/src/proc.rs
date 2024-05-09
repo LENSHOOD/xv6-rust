@@ -1,20 +1,20 @@
-use core::{mem, ptr};
-use core::sync::atomic::{AtomicU32, Ordering};
-use crate::file::{File, INode};
 use crate::file::file::fileclose;
+use crate::file::{File, INode};
 use crate::fs::fs;
 use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
-use crate::{KSTACK, printf};
 use crate::log::{begin_op, end_op};
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED, ZOMBIE};
-use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
+use crate::riscv::{intr_get, intr_on, r_tp, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
 use crate::vm::{copyin, copyout, kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
+use crate::{printf, KSTACK};
+use core::sync::atomic::{AtomicU32, Ordering};
+use core::{mem, ptr};
 
 // Saved registers for kernel context switches.
 #[repr(C)]
@@ -47,7 +47,7 @@ pub struct Cpu<'a> {
     // swtch() here to enter scheduler().
     pub noff: u8,
     // Depth of push_off() nesting.
-    pub intena: bool,          // Were interrupts enabled before push_off()?
+    pub intena: bool, // Were interrupts enabled before push_off()?
 }
 
 impl<'a> Cpu<'a> {
@@ -66,7 +66,7 @@ static mut PROCS: [Proc; NPROC] = [Proc::default(); NPROC];
 
 static mut INIT_PROC: Option<&mut Proc> = None;
 
-extern {
+extern "C" {
     static trampoline: u8; // trampoline.S
     fn swtch(curr_ctx: &Context, backup_ctx: &Context);
 }
@@ -129,7 +129,14 @@ pub struct Trapframe {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub(crate) enum Procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }
+pub(crate) enum Procstate {
+    UNUSED,
+    USED,
+    SLEEPING,
+    RUNNABLE,
+    RUNNING,
+    ZOMBIE,
+}
 
 // Per-process state
 #[derive(Copy, Clone)]
@@ -138,23 +145,23 @@ pub struct Proc<'a> {
 
     // p->lock must be held when using these:
     pub(crate) state: Procstate, // Process state
-    chan: Option<*const u8>, // If non-zero, sleeping on chan
-    killed: u8, // If non-zero, have been killed
-    xstate: u8, // Exit status to be returned to parent's wait
-    pub pid: u32,                     // Process ID
+    chan: Option<*const u8>,     // If non-zero, sleeping on chan
+    killed: u8,                  // If non-zero, have been killed
+    xstate: u8,                  // Exit status to be returned to parent's wait
+    pub pid: u32,                // Process ID
 
     // wait_lock must be held when using this:
-    pub(crate) parent: Option<&'a Proc<'a>>,         // Parent process
+    pub(crate) parent: Option<&'a Proc<'a>>, // Parent process
 
     // these are private to the process, so p->lock need not be held.
     pub(crate) kstack: usize, // Virtual address of kernel stack
-    pub(crate) sz: usize, // Size of process memory (bytes)
+    pub(crate) sz: usize,     // Size of process memory (bytes)
     pub(crate) pagetable: Option<*mut PageTable>, // User page table
     pub(crate) trapframe: Option<*mut Trapframe>, // data page for trampoline.S
-    context: Context, // swtch() here to run process
+    context: Context,         // swtch() here to run process
     pub(crate) ofile: [Option<*mut File>; NOFILE], // Open files
-    pub(crate) cwd: Option<*mut INode>,           // Current directory
-    pub(crate) name: [u8; 16],               // Process name (debugging)
+    pub(crate) cwd: Option<*mut INode>, // Current directory
+    pub(crate) name: [u8; 16], // Process name (debugging)
 }
 
 impl<'a> Proc<'a> {
@@ -267,13 +274,10 @@ pub fn procinit() {
 // assembled from ../user/initcode.S
 // od -t xC ../user/initcode
 const INIT_CODE: [u8; 52] = [
-    0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02,
-    0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x35, 0x02,
-    0x93, 0x08, 0x70, 0x00, 0x73, 0x00, 0x00, 0x00,
-    0x93, 0x08, 0x20, 0x00, 0x73, 0x00, 0x00, 0x00,
-    0xef, 0xf0, 0x9f, 0xff, 0x2f, 0x69, 0x6e, 0x69,
-    0x74, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
+    0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02, 0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x35, 0x02,
+    0x93, 0x08, 0x70, 0x00, 0x73, 0x00, 0x00, 0x00, 0x93, 0x08, 0x20, 0x00, 0x73, 0x00, 0x00, 0x00,
+    0xef, 0xf0, 0x9f, 0xff, 0x2f, 0x69, 0x6e, 0x69, 0x74, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
 ];
 
 // Set up first user process.
@@ -281,12 +285,16 @@ pub fn userinit() {
     let p = allocproc().unwrap();
     // allocate one user page and copy initcode's instructions
     // and data into it.
-    uvmfirst(unsafe { p.pagetable.unwrap().as_mut().unwrap() }, &INIT_CODE as *const u8, mem::size_of_val(&INIT_CODE));
+    uvmfirst(
+        unsafe { p.pagetable.unwrap().as_mut().unwrap() },
+        &INIT_CODE as *const u8,
+        mem::size_of_val(&INIT_CODE),
+    );
     p.sz = PGSIZE;
 
     // prepare for the very first "return" from kernel to user.
     unsafe {
-        p.trapframe.unwrap().as_mut().unwrap().epc = 0;      // user program counter
+        p.trapframe.unwrap().as_mut().unwrap().epc = 0; // user program counter
         p.trapframe.unwrap().as_mut().unwrap().sp = PGSIZE as u64; // user stack pointer
     }
 
@@ -299,7 +307,9 @@ pub fn userinit() {
 
     p.lock.release();
 
-    unsafe { INIT_PROC = Some(p); }
+    unsafe {
+        INIT_PROC = Some(p);
+    }
 }
 
 // Give up the CPU for one scheduling round.
@@ -310,16 +320,15 @@ pub(crate) fn yield_curr_proc() {
 // A fork child's very first scheduling by scheduler()
 // will swtch to forkret.
 fn forkret() {
-
     // Still holding p->lock from scheduler.
     let my_proc = myproc();
     my_proc.lock.release();
 
     let mut first = true;
     if first {
-    // File system initialization must be run in the context of a
-    // regular process (e.g., because it calls sleep), and thus cannot
-    // be run from main().
+        // File system initialization must be run in the context of a
+        // regular process (e.g., because it calls sleep), and thus cannot
+        // be run from main().
         first = false;
         fs::fsinit(ROOTDEV);
     }
@@ -403,13 +412,19 @@ pub fn proc_pagetable<'a>(p: &Proc) -> Option<*mut PageTable> {
     // An empty page table.
     let pagetable = uvmcreate()?;
 
-
     // map the trampoline code (for system call return)
     // at the highest user virtual address.
     // only the supervisor uses it, on the way
     // to/from user space, so not PTE_U.
     let trampoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
-    if mappages(pagetable, TRAMPOLINE, trampoline_addr, PGSIZE, PTE_R | PTE_X) != 0 {
+    if mappages(
+        pagetable,
+        TRAMPOLINE,
+        trampoline_addr,
+        PGSIZE,
+        PTE_R | PTE_X,
+    ) != 0
+    {
         uvmfree(pagetable, 0);
         return None;
     }
@@ -441,14 +456,18 @@ pub(crate) fn killed(p: &mut Proc) -> u8 {
     return k;
 }
 
-
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
 pub(crate) fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, len: usize) -> i8 {
     let p = myproc();
     if is_user_dst {
-        copyout(unsafe { p.pagetable.unwrap().as_mut().unwrap() }, dst.expose_addr(), src, len)
+        copyout(
+            unsafe { p.pagetable.unwrap().as_mut().unwrap() },
+            dst.expose_addr(),
+            src,
+            len,
+        )
     } else {
         memmove(dst, src, len);
         return 0;
@@ -461,13 +480,17 @@ pub(crate) fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, le
 pub(crate) fn either_copyin(dst: *mut u8, is_user_src: bool, src: *const u8, len: usize) -> i8 {
     let p = myproc();
     if is_user_src {
-        copyin(unsafe { p.pagetable.unwrap().as_mut().unwrap() }, dst, src.expose_addr(), len)
+        copyin(
+            unsafe { p.pagetable.unwrap().as_mut().unwrap() },
+            dst,
+            src.expose_addr(),
+            len,
+        )
     } else {
         memmove(dst, src, len);
         return 0;
     }
 }
-
 
 // Wake up all processes sleeping on chan.
 // Must be called without any p->lock.
@@ -495,7 +518,7 @@ pub fn sleep<T>(chan: *const T, lk: &mut Spinlock) {
     // (wakeup locks p->lock),
     // so it's okay to release lk.
 
-    p.lock.acquire();  //DOC: sleeplock1
+    p.lock.acquire(); //DOC: sleeplock1
     lk.release();
 
     // Go to sleep.
@@ -573,7 +596,9 @@ fn sched() {
     }
 
     let intena = mycpu().intena;
-    unsafe { swtch(&p.context, &mycpu().context.unwrap()); }
+    unsafe {
+        swtch(&p.context, &mycpu().context.unwrap());
+    }
     mycpu().intena = intena;
 }
 
@@ -597,11 +622,15 @@ pub(crate) fn exit(status: i32) {
     }
 
     begin_op();
-    unsafe { p.cwd.unwrap().as_mut().unwrap().iput(); }
+    unsafe {
+        p.cwd.unwrap().as_mut().unwrap().iput();
+    }
     end_op();
     p.cwd = None;
 
-    unsafe { WAIT_LOCK.acquire(); }
+    unsafe {
+        WAIT_LOCK.acquire();
+    }
 
     // Give any children to init.
     reparent(p);
@@ -613,7 +642,9 @@ pub(crate) fn exit(status: i32) {
     p.xstate = status as u8;
     p.state = ZOMBIE;
 
-    unsafe { WAIT_LOCK.release(); }
+    unsafe {
+        WAIT_LOCK.release();
+    }
 
     // Jump into the scheduler, never to return.
     sched();
@@ -625,7 +656,9 @@ pub(crate) fn exit(status: i32) {
 pub(crate) fn wait(addr: usize) -> i32 {
     let p = myproc();
 
-    unsafe { WAIT_LOCK.acquire(); }
+    unsafe {
+        WAIT_LOCK.acquire();
+    }
 
     let mut havekids = false;
     loop {
@@ -639,21 +672,26 @@ pub(crate) fn wait(addr: usize) -> i32 {
                 if pp.state == ZOMBIE {
                     // Found one.
                     let pid = pp.pid;
-                    if addr != 0 &&
-                        copyout(
-                        unsafe { p.pagetable.unwrap().as_mut().unwrap() },
-                        addr,
-                        &pp.xstate as *const u8,
-                        mem::size_of_val(&pp.xstate)) < 0 {
-
+                    if addr != 0
+                        && copyout(
+                            unsafe { p.pagetable.unwrap().as_mut().unwrap() },
+                            addr,
+                            &pp.xstate as *const u8,
+                            mem::size_of_val(&pp.xstate),
+                        ) < 0
+                    {
                         pp.lock.release();
-                        unsafe { WAIT_LOCK.release(); }
+                        unsafe {
+                            WAIT_LOCK.release();
+                        }
                         return -1;
                     }
 
                     freeproc(pp);
                     pp.lock.release();
-                    unsafe { WAIT_LOCK.release(); }
+                    unsafe {
+                        WAIT_LOCK.release();
+                    }
                     return pid as i32;
                 }
 
@@ -663,12 +701,14 @@ pub(crate) fn wait(addr: usize) -> i32 {
 
         // No point waiting if we don't have any children.
         if !havekids || killed(p) != 0 {
-            unsafe { WAIT_LOCK.release(); }
+            unsafe {
+                WAIT_LOCK.release();
+            }
             return -1;
         }
 
         // Wait for a child to exit.
-        sleep(p, unsafe { &mut WAIT_LOCK });  //DOC: wait-sleep
+        sleep(p, unsafe { &mut WAIT_LOCK }); //DOC: wait-sleep
     }
 }
 
@@ -708,7 +748,12 @@ pub(crate) fn procdump() {
             ZOMBIE => "zombie",
         };
 
-        printf!("{} {} {}", p.pid, state, core::str::from_utf8(&p.name).unwrap());
+        printf!(
+            "{} {} {}",
+            p.pid,
+            state,
+            core::str::from_utf8(&p.name).unwrap()
+        );
         printf!("\n");
     }
 }

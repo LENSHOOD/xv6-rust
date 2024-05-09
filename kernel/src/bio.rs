@@ -13,11 +13,11 @@
 // * Only one process at a time can use a buffer,
 //     so do not keep them longer than necessary.
 
-use core::ptr::NonNull;
 use crate::buf::Buf;
 use crate::param::NBUF;
 use crate::spinlock::Spinlock;
 use crate::virtio::virtio_disk::virtio_disk_rw;
+use core::ptr::NonNull;
 
 struct BCache {
     lock: Spinlock,
@@ -69,7 +69,6 @@ pub fn binit() {
         }
     }
 }
-
 
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
@@ -142,7 +141,9 @@ pub fn bwrite(b: *mut Buf) {
     if !unsafe { b.as_mut() }.unwrap().lock.holding_sleep() {
         panic!("bwrite");
     }
-    unsafe { virtio_disk_rw(b, true); }
+    unsafe {
+        virtio_disk_rw(b, true);
+    }
 }
 
 // Release a locked buffer.

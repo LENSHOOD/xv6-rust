@@ -4,21 +4,26 @@ use crate::pipe::Pipe;
 use crate::sleeplock::Sleeplock;
 use crate::stat::FileType;
 
-pub mod file;
 pub mod fcntl;
+pub mod file;
 
 #[derive(Copy, Clone, PartialEq)]
-pub(crate) enum FDType { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE }
+pub(crate) enum FDType {
+    FD_NONE,
+    FD_PIPE,
+    FD_INODE,
+    FD_DEVICE,
+}
 #[derive(Copy, Clone)]
 pub struct File {
     pub(crate) file_type: FDType,
     ref_cnt: i32, // reference count
     pub(crate) readable: bool,
     pub(crate) writable: bool,
-    pipe: Option<*mut Pipe>, // FD_PIPE
+    pipe: Option<*mut Pipe>,           // FD_PIPE
     pub(crate) ip: Option<*mut INode>, // FD_INODE and FD_DEVICE
-    pub(crate) off: u32, // FD_INODE
-    pub(crate) major: i16, // FD_DEVICE
+    pub(crate) off: u32,               // FD_INODE
+    pub(crate) major: i16,             // FD_DEVICE
 }
 
 impl File {
@@ -60,18 +65,18 @@ macro_rules! mkdev {
 // in-memory copy of an inode
 #[derive(Copy, Clone)]
 pub struct INode {
-    pub(crate) dev: u32, // Device number
-    pub(crate) inum: u32, // Inode number
-    pub(crate) ref_cnt: i32, // Reference count
+    pub(crate) dev: u32,        // Device number
+    pub(crate) inum: u32,       // Inode number
+    pub(crate) ref_cnt: i32,    // Reference count
     pub(crate) lock: Sleeplock, // protects everything below here
-    pub(crate) valid: bool, // inode has been read from disk?
+    pub(crate) valid: bool,     // inode has been read from disk?
 
     pub(crate) file_type: FileType, // copy of disk inode
     pub(crate) major: i16,
     pub(crate) minor: i16,
     pub(crate) nlink: i16,
     pub(crate) size: u32,
-    pub(crate) addrs: [u32; NDIRECT + 1]
+    pub(crate) addrs: [u32; NDIRECT + 1],
 }
 
 impl INode {

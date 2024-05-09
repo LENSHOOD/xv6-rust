@@ -1,10 +1,8 @@
 use core::arch::asm;
 
-pub fn r_mhartid() -> u64{
+pub fn r_mhartid() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, mhartid", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, mhartid", out(reg) x) }
     x
 }
 
@@ -15,28 +13,21 @@ pub const MSTATUS_MPP_S: u64 = 1 << 11;
 pub const MSTATUS_MPP_U: u64 = 0 << 11;
 pub const MSTATUS_MIE: u64 = 1 << 3; // machine-mode interrupt enable.
 
-
 pub fn r_mstatus() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, mstatus", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, mstatus", out(reg) x) }
     x
 }
 
 pub fn w_mstatus(x: u64) {
-    unsafe {
-        asm!("csrw mstatus, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mstatus, {}", in(reg) x) }
 }
 
 // machine exception program counter, holds the
 // instruction address to which a return from
 // exception will go.
 pub fn w_mepc(x: usize) {
-    unsafe {
-        asm!("csrw mepc, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mepc, {}", in(reg) x) }
 }
 
 // Supervisor Status Register, sstatus
@@ -48,31 +39,23 @@ pub const SSTATUS_UIE: u64 = 1 << 0; // User Interrupt Enable
 
 pub fn r_sstatus() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, sstatus", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, sstatus", out(reg) x) }
     x
 }
 
 pub fn w_sstatus(x: u64) {
-    unsafe {
-        asm!("csrw sstatus, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw sstatus, {}", in(reg) x) }
 }
 
 // Supervisor Interrupt Pending
 pub fn r_sip() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, sip", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, sip", out(reg) x) }
     x
 }
 
 pub fn w_sip(x: u64) {
-    unsafe {
-        asm!("csrw sip, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw sip, {}", in(reg) x) }
 }
 
 // Supervisor Interrupt Enable
@@ -81,16 +64,12 @@ pub const SIE_STIE: u64 = 1 << 5; // timer
 pub const SIE_SSIE: u64 = 1 << 1; // software
 pub fn r_sie() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, sie", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, sie", out(reg) x) }
     x
 }
 
 pub fn w_sie(x: u64) {
-    unsafe {
-        asm!("csrw sie, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw sie, {}", in(reg) x) }
 }
 
 // Machine-mode Interrupt Enable
@@ -99,16 +78,12 @@ pub const MIE_MTIE: u64 = 1 << 7; // timer
 pub const MIE_MSIE: u64 = 1 << 3; // software
 pub fn r_mie() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, mie", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, mie", out(reg) x) }
     x
 }
 
 pub fn w_mie(x: u64) {
-    unsafe {
-        asm!("csrw mie, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mie, {}", in(reg) x) }
 }
 
 // supervisor exception program counter, holds the
@@ -116,91 +91,67 @@ pub fn w_mie(x: u64) {
 // exception will go.
 pub fn r_sepc() -> usize {
     let mut x: usize = 0;
-    unsafe {
-        asm!("csrr {}, sepc", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, sepc", out(reg) x) }
     x
 }
 
 pub fn w_sepc(x: usize) {
-    unsafe {
-        asm!("csrw sepc, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw sepc, {}", in(reg) x) }
 }
 
 // Machine Exception Delegation
 pub fn r_medeleg() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, medeleg", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, medeleg", out(reg) x) }
     x
 }
 
 pub fn w_medeleg(x: u64) {
-    unsafe {
-        asm!("csrw medeleg, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw medeleg, {}", in(reg) x) }
 }
 
 // Machine Interrupt Delegation
 pub fn r_mideleg() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, mideleg", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, mideleg", out(reg) x) }
     x
 }
 
 pub fn w_mideleg(x: u64) {
-    unsafe {
-        asm!("csrw mideleg, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mideleg, {}", in(reg) x) }
 }
 
 // Supervisor Trap-Vector Base Address
 // low two bits are mode.
 pub fn r_stvec() -> usize {
     let mut x: usize = 0;
-    unsafe {
-        asm!("csrr {}, stvec", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, stvec", out(reg) x) }
     x
 }
 
 pub fn w_stvec(x: usize) {
-    unsafe {
-        asm!("csrw stvec, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw stvec, {}", in(reg) x) }
 }
 
 // Machine-mode interrupt vector
 pub fn w_mtvec(x: usize) {
-    unsafe {
-        asm!("csrw mtvec, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mtvec, {}", in(reg) x) }
 }
 
 // Physical Memory Protection
 pub fn w_pmpcfg0(x: u64) {
-    unsafe {
-        asm!("csrw pmpcfg0, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw pmpcfg0, {}", in(reg) x) }
 }
 
 pub fn w_pmpaddr0(x: u64) {
-    unsafe {
-        asm!("csrw pmpaddr0, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw pmpaddr0, {}", in(reg) x) }
 }
 
 // supervisor address translation and protection;
 // holds the address of the page table.
 pub fn r_satp() -> usize {
     let mut x: usize = 0;
-    unsafe {
-        asm!("csrr {}, satp", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, satp", out(reg) x) }
     x
 }
 
@@ -214,56 +165,42 @@ macro_rules! MAKE_SATP {
 }
 
 pub fn w_satp(x: usize) {
-    unsafe {
-        asm!("csrw satp, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw satp, {}", in(reg) x) }
 }
 
 pub fn w_mscratch(x: usize) {
-    unsafe {
-        asm!("csrw mscratch, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mscratch, {}", in(reg) x) }
 }
 
 // Supervisor Trap Cause
 pub fn r_scause() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, scause", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, scause", out(reg) x) }
     x
 }
 
 // Supervisor Trap Value
 pub fn r_stval() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, stval", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, stval", out(reg) x) }
     x
 }
 
 // Machine-mode Counter-Enable
 pub fn r_mcounteren() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, mcounteren", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, mcounteren", out(reg) x) }
     x
 }
 
 pub fn w_mcounteren(x: u64) {
-    unsafe {
-        asm!("csrw mcounteren, {}", in(reg) x)
-    }
+    unsafe { asm!("csrw mcounteren, {}", in(reg) x) }
 }
 
 // machine-mode cycle counter
 pub fn r_time() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("csrr {}, time", out(reg) x)
-    }
+    unsafe { asm!("csrr {}, time", out(reg) x) }
     x
 }
 
@@ -285,9 +222,7 @@ pub fn intr_get() -> bool {
 
 pub fn r_sp() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("mv {}, sp", out(reg) x)
-    }
+    unsafe { asm!("mv {}, sp", out(reg) x) }
     x
 }
 
@@ -295,31 +230,23 @@ pub fn r_sp() -> u64 {
 // this core's hartid (core number), the index into cpus[].
 pub fn r_tp() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("mv {}, tp", out(reg) x)
-    }
+    unsafe { asm!("mv {}, tp", out(reg) x) }
     x
 }
 
 pub fn w_tp(x: u64) {
-    unsafe {
-        asm!("mv tp, {}", in(reg) x)
-    }
+    unsafe { asm!("mv tp, {}", in(reg) x) }
 }
 
 pub fn r_ra() -> u64 {
     let mut x: u64 = 0;
-    unsafe {
-        asm!("mv {}, ra", out(reg) x)
-    }
+    unsafe { asm!("mv {}, ra", out(reg) x) }
     x
 }
 
 // flush the TLB.
 pub fn sfence_vma() {
-    unsafe {
-        asm!("sfence.vma zero, zero")
-    }
+    unsafe { asm!("sfence.vma zero, zero") }
 }
 
 /// VPN = Visual Page Number, PPN = Physical Page Number
@@ -337,10 +264,10 @@ pub const PTE_SIZE: usize = PGSIZE / 8;
 ///             >_> PhysicalPageAddr(PTE >> 10 << 12)
 #[repr(C)]
 #[derive(Debug)]
-pub struct PageTable(pub [Pte; PTE_SIZE]);  // 512 PTEs
+pub struct PageTable(pub [Pte; PTE_SIZE]); // 512 PTEs
 
 pub const PGSIZE: usize = 4096; // bytes per page
-pub const PGSHIFT: usize = 12;  // bits of offset within a page
+pub const PGSHIFT: usize = 12; // bits of offset within a page
 
 #[macro_export]
 macro_rules! PGROUNDUP {
@@ -351,7 +278,7 @@ macro_rules! PGROUNDUP {
 #[macro_export]
 macro_rules! PGROUNDDOWN {
     ( $a:expr ) => {
-        (($a)) & !(crate::riscv::PGSIZE - 1)
+        ($a) & !(crate::riscv::PGSIZE - 1)
     };
 }
 
@@ -359,7 +286,7 @@ pub const PTE_V: usize = 1 << 0; // valid
 pub const PTE_R: usize = 1 << 1;
 pub const PTE_W: usize = 1 << 2;
 pub const PTE_X: usize = 1 << 3;
-pub const PTE_U: usize = 1 << 4;// user can access
+pub const PTE_U: usize = 1 << 4; // user can access
 
 // shift a physical address to the right place for a PTE.
 #[macro_export]
@@ -407,20 +334,14 @@ pub const MAXVA: usize = 1 << (9 + 9 + 9 + 12 - 1);
 /// atomic op
 pub fn __sync_lock_test_and_set(ptr: *mut u64, val: u64) -> u64 {
     let mut ret: u64 = 0;
-    unsafe {
-        asm!("amoswap.w.aq {0}, {1}, ({2})", out(reg) ret, in(reg) val, in(reg) ptr)
-    }
+    unsafe { asm!("amoswap.w.aq {0}, {1}, ({2})", out(reg) ret, in(reg) val, in(reg) ptr) }
     ret
 }
 
 pub fn __sync_lock_release(ptr: *const u64) {
-    unsafe {
-        asm!("amoswap.w zero, zero, ({})", in(reg) ptr)
-    }
+    unsafe { asm!("amoswap.w zero, zero, ({})", in(reg) ptr) }
 }
 
 pub fn __sync_synchronize() {
-    unsafe {
-        asm!("fence iorw, iorw")
-    }
+    unsafe { asm!("fence iorw, iorw") }
 }

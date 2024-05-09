@@ -1,12 +1,15 @@
+use crate::deps::FileType::{T_DIR, T_FILE};
+use crate::deps::{
+    DINode, Dirent, FileType, SuperBlock, BSIZE, DIRSIZ, FSMAGIC, FSSIZE, IPB, LOGSIZE, MAXFILE,
+    NDIRECT, NINDIRECT, ROOTINO,
+};
+use clap::Parser;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::{cmp, io::Result};
 use std::mem::size_of;
 use std::slice::from_raw_parts;
-use std::sync::atomic::{Ordering, AtomicU32};
-use crate::deps::{BSIZE, DINode, Dirent, DIRSIZ, FileType, FSMAGIC, FSSIZE, IPB, LOGSIZE, MAXFILE, NDIRECT, NINDIRECT, ROOTINO, SuperBlock};
-use clap::Parser;
-use crate::deps::FileType::{T_DIR, T_FILE};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::{cmp, io::Result};
 
 mod deps;
 const NINODES: u32 = 200;
@@ -14,13 +17,13 @@ const NINODES: u32 = 200;
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
 
-const NBITMAP: u32 = FSSIZE/(BSIZE as u32 * 8) + 1;
+const NBITMAP: u32 = FSSIZE / (BSIZE as u32 * 8) + 1;
 const NINODEBLOCKS: u32 = NINODES / IPB + 1;
 const NLOG: u32 = LOGSIZE;
 
 // 1 fs block = 1 disk sector
-const NMETA: u32 = 2 + NLOG + NINODEBLOCKS + NBITMAP;    // Number of meta blocks (boot, sb, nlog, inode, bitmap)
-const NBLOCKS: u32 = FSSIZE - NMETA;  // Number of data blocks
+const NMETA: u32 = 2 + NLOG + NINODEBLOCKS + NBITMAP; // Number of meta blocks (boot, sb, nlog, inode, bitmap)
+const NBLOCKS: u32 = FSSIZE - NMETA; // Number of data blocks
 
 const SB: SuperBlock = SuperBlock {
     magic: FSMAGIC,
@@ -29,8 +32,8 @@ const SB: SuperBlock = SuperBlock {
     ninodes: NINODES.to_le(),
     nlog: NLOG.to_le(),
     logstart: 2u32.to_le(),
-    inodestart: (2+NLOG).to_le(),
-    bmapstart: (2+NLOG+NINODEBLOCKS).to_le(),
+    inodestart: (2 + NLOG).to_le(),
+    bmapstart: (2 + NLOG + NINODEBLOCKS).to_le(),
 };
 const ZEROES: [u8; BSIZE] = [0; BSIZE];
 static FREEINODE: AtomicU32 = AtomicU32::new(1);
@@ -55,13 +58,12 @@ fn main() -> Result<()> {
 
     let args: Args = Args::parse();
 
-    let mut img_file =
-        File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(args.output_name)?;
+    let mut img_file = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(args.output_name)?;
 
     println!("nmeta {} (boot, super, log blocks {} inode blocks {}, bitmap blocks {}) blocks {} total {}",
            NMETA, NLOG, NINODEBLOCKS, NBITMAP, NBLOCKS, FSSIZE);
@@ -70,7 +72,12 @@ fn main() -> Result<()> {
         wsect(&mut img_file, i, &ZEROES)?;
     }
 
-    let x = unsafe { from_raw_parts(&SB as *const SuperBlock as *const u8, size_of::<SuperBlock>()) };
+    let x = unsafe {
+        from_raw_parts(
+            &SB as *const SuperBlock as *const u8,
+            size_of::<SuperBlock>(),
+        )
+    };
     let mut buf: [u8; BSIZE] = [0; BSIZE];
     buf[..x.len()].clone_from_slice(x);
     wsect(&mut img_file, 1, &buf)?;
@@ -119,7 +126,7 @@ fn main() -> Result<()> {
                 de.inum = (inum as u16).to_le();
                 let v = short_name.as_bytes();
                 de.name[..v.len()].copy_from_slice(v);
-                iappend(&mut img_file,rootino, &de, size_of::<Dirent>() as i32)?;
+                iappend(&mut img_file, rootino, &de, size_of::<Dirent>() as i32)?;
 
                 let mut cc = 1;
                 while cc > 0 {
@@ -186,7 +193,8 @@ fn rinode(f: &mut File, inum: u32) -> DINode {
     rsect(f, bn, &mut buf).unwrap();
     let (_head, body, _tail) = unsafe {
         let ino_sz = size_of::<DINode>();
-        buf[ino_sz * (inum % IPB) as usize..ino_sz * ((inum + 1) % IPB) as usize].align_to::<DINode>()
+        buf[ino_sz * (inum % IPB) as usize..ino_sz * ((inum + 1) % IPB) as usize]
+            .align_to::<DINode>()
     };
 
     body[0].clone()
@@ -209,11 +217,11 @@ fn ialloc(f: &mut File, file_type: FileType) -> Result<u32> {
 
 fn balloc(f: &mut File, used: i32) -> Result<()> {
     println!("balloc: first {} blocks have been allocated", used);
-    assert!(used < (BSIZE*8) as i32);
+    assert!(used < (BSIZE * 8) as i32);
 
     let mut buf: [u8; BSIZE] = [0; BSIZE];
     for i in 0..BSIZE {
-        buf[i/8] = buf[i/8] | (0x1 << (i%8));
+        buf[i / 8] = buf[i / 8] | (0x1 << (i % 8));
     }
 
     println!("balloc: write bitmap block at sector {}", &SB.bmapstart);
@@ -243,16 +251,15 @@ fn iappend<T>(f: &mut File, inum: u32, xp: &T, n: i32) -> Result<()> {
             let c = din.addrs[fbn];
             let d = c.to_le();
             d
-
         } else {
             if din.addrs[NDIRECT].to_le() == 0 {
                 din.addrs[NDIRECT] = FREEBLOCK.fetch_add(1, Ordering::Relaxed).to_le();
             }
-            let mut buf: [u8; NINDIRECT*4] = unsafe { std::mem::transmute(indirect) };
+            let mut buf: [u8; NINDIRECT * 4] = unsafe { std::mem::transmute(indirect) };
             rsect(f, din.addrs[NDIRECT].to_le(), &mut buf)?;
             if indirect[fbn - NDIRECT] == 0 {
                 indirect[fbn - NDIRECT] = FREEBLOCK.fetch_add(1, Ordering::Relaxed).to_le();
-                let mut buf: [u8; NINDIRECT*4] = unsafe { std::mem::transmute(indirect) };
+                let mut buf: [u8; NINDIRECT * 4] = unsafe { std::mem::transmute(indirect) };
                 wsect(f, din.addrs[NDIRECT].to_le(), &mut buf)?;
             }
             indirect[fbn - NDIRECT].to_le()
@@ -262,7 +269,7 @@ fn iappend<T>(f: &mut File, inum: u32, xp: &T, n: i32) -> Result<()> {
         rsect(f, x, &mut buf)?;
 
         let start = off as usize - (fbn * BSIZE);
-        buf[start..start+n1].clone_from_slice(&xp[pos..pos + n1]);
+        buf[start..start + n1].clone_from_slice(&xp[pos..pos + n1]);
         wsect(f, x, &buf)?;
         n -= n1 as i32;
         off += n1 as u32;

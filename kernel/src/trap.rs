@@ -1,19 +1,22 @@
-use crate::{MAKE_SATP, printf};
 use crate::memlayout::{TRAMPOLINE, UART0_IRQ, VIRTIO0_IRQ};
-use crate::proc::{cpuid, exit, killed, myproc, wakeup, yield_curr_proc};
-use crate::riscv::{intr_get, intr_off, intr_on, PageTable, PGSIZE, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sip, w_sstatus, w_stvec};
-use crate::spinlock::Spinlock;
 use crate::plic::{plic_claim, plic_complete};
 use crate::proc::Procstate::RUNNING;
+use crate::proc::{cpuid, exit, killed, myproc, wakeup, yield_curr_proc};
+use crate::riscv::{
+    intr_get, intr_off, intr_on, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, w_sepc,
+    w_sip, w_sstatus, w_stvec, PageTable, PGSIZE, SSTATUS_SPIE, SSTATUS_SPP,
+};
+use crate::spinlock::Spinlock;
 use crate::syscall::syscall::syscall;
 use crate::uart::UART_INSTANCE;
 use crate::virtio::virtio_disk::virtio_disk_intr;
+use crate::{printf, MAKE_SATP};
 
 static mut TICKS_LOCK: Option<Spinlock> = None;
 static mut TICKS: u32 = 0;
 
 // in kernelvec.S, calls kerneltrap().
-extern {
+extern "C" {
     static kernelvec: u8;
     static trampoline: u8;
     static uservec: u8;
@@ -42,7 +45,7 @@ fn usertrap() {
 
     // send interrupts and exceptions to kerneltrap(),
     // since we're now in the kernel.
-    w_stvec( (unsafe { &kernelvec } as *const u8).expose_addr());
+    w_stvec((unsafe { &kernelvec } as *const u8).expose_addr());
 
     let p = myproc();
 
@@ -72,7 +75,11 @@ fn usertrap() {
         if which_dev != 0 {
             // ok
         } else {
-            printf!("usertrap(): unexpected scause {:x} pid={}\n", r_scause(), p.pid);
+            printf!(
+                "usertrap(): unexpected scause {:x} pid={}\n",
+                r_scause(),
+                p.pid
+            );
             printf!("            sepc={:x} stval={:x}\n", r_sepc(), r_stval());
             p.setkilled();
         }
@@ -111,10 +118,10 @@ pub fn usertrapret() {
     // the process next traps into the kernel.
 
     let trapframe = unsafe { p.trapframe.unwrap().as_mut().unwrap() };
-    trapframe.kernel_satp = r_satp() as u64;         // kernel page table
+    trapframe.kernel_satp = r_satp() as u64; // kernel page table
     trapframe.kernel_sp = (p.kstack + PGSIZE) as u64; // process's kernel stack
     trapframe.kernel_trap = usertrap as u64;
-    trapframe.kernel_hartid = r_tp();         // hartid for cpuid()
+    trapframe.kernel_hartid = r_tp(); // hartid for cpuid()
 
     // set up the registers that trampoline.S's sret will use
     // to get to user space.
@@ -146,13 +153,12 @@ pub fn usertrapret() {
 // interrupts and exceptions from kernel code go here via kernelvec,
 // on whatever the current kernel stack is.
 #[no_mangle]
-extern "C"
-fn kerneltrap() {
+extern "C" fn kerneltrap() {
     let mut which_dev = 0;
     let sepc = r_sepc();
     let sstatus = r_sstatus();
     let scause = r_scause();
-    
+
     if (sstatus & SSTATUS_SPP) == 0 {
         panic!("kerneltrap: not from supervisor mode");
     }
@@ -166,13 +172,13 @@ fn kerneltrap() {
         printf!("sepc=%{:x} stval=%{:x}\n", r_sepc(), r_stval());
         panic!("kerneltrap");
     }
-    
+
     let p = myproc();
     // give up the CPU if this is a timer interrupt.
     if which_dev == 2 && p.state == RUNNING {
         p.proc_yield();
     }
-    
+
     // the yield() may have caused some traps to occur,
     // so restore trap registers for use by kernelvec.S's sepc instruction.
     w_sepc(sepc);
@@ -189,7 +195,6 @@ fn clockintr() {
     }
 }
 
-
 // check if it's an external interrupt or software interrupt,
 // and handle it.
 // returns 2 if timer interrupt,
@@ -205,9 +210,13 @@ fn devintr() -> u8 {
         let irq = plic_claim();
 
         if irq == UART0_IRQ as i32 {
-            unsafe { UART_INSTANCE.intr(); }
+            unsafe {
+                UART_INSTANCE.intr();
+            }
         } else if irq == VIRTIO0_IRQ as i32 {
-            unsafe { virtio_disk_intr(); }
+            unsafe {
+                virtio_disk_intr();
+            }
         } else if irq == 0 {
             printf!("unexpected interrupt irq={}\n", irq);
         }

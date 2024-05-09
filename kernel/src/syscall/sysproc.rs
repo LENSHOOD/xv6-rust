@@ -1,30 +1,28 @@
-use core::mem;
 use crate::file::file::filedup;
 use crate::param::NOFILE;
-use crate::proc::{allocproc, freeproc, myproc, Trapframe, wait};
-use crate::vm::uvmcopy;
-use crate::proc::{Procstate::RUNNABLE, WAIT_LOCK, exit};
+use crate::proc::{allocproc, freeproc, myproc, wait, Trapframe};
+use crate::proc::{exit, Procstate::RUNNABLE, WAIT_LOCK};
 use crate::syscall::syscall::{argaddr, argint};
+use crate::vm::uvmcopy;
+use core::mem;
 
 pub(crate) fn sys_exit() -> u64 {
     let n = argint(0);
     exit(n);
-    return 0;  // not reached
+    return 0; // not reached
 }
-
 
 pub(crate) fn sys_fork() -> u64 {
     return match fork() {
         Some(pid) => pid,
-        None => u32::MAX
-    } as u64
+        None => u32::MAX,
+    } as u64;
 }
 
 pub(crate) fn sys_wait() -> u64 {
     let p = argaddr(0);
     return wait(p) as u64;
 }
-
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
@@ -46,11 +44,15 @@ fn fork() -> Option<u32> {
     p.trapframe.map(|t| {
         let sz = mem::size_of::<Trapframe>();
         let dest = np.trapframe.unwrap();
-        unsafe { t.copy_to(dest, sz); }
+        unsafe {
+            t.copy_to(dest, sz);
+        }
     });
 
     // Cause fork to return 0 in the child.
-    unsafe { np.trapframe?.as_mut()?.a0 = 0; }
+    unsafe {
+        np.trapframe?.as_mut()?.a0 = 0;
+    }
 
     // increment reference counts on open file descriptors.
     for i in 0..NOFILE {
