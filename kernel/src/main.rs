@@ -52,7 +52,6 @@ extern "C" fn eh_personality() {}
 pub(crate) static PANICKED: AtomicBool = AtomicBool::new(false);
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    PANICKED.store(true, Ordering::Relaxed);
     printf!("Aborting: \n");
     if let Some(p) = info.location() {
         printf!(
@@ -64,6 +63,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     } else {
         printf!("no information available.\n");
     }
+    
+    PANICKED.store(true, Ordering::Relaxed);
     abort();
 }
 
@@ -153,5 +154,6 @@ pub extern "C" fn kmain() {
         plic::plicinithart(); // ask PLIC for device interrupts
     }
 
+    printf!("\nCPU {} start scheduling\n", cpuid());
     proc::scheduler();
 }
