@@ -234,11 +234,13 @@ pub fn mycpu() -> &'static mut Cpu<'static> {
     unsafe { &mut CPUS[cpuid()] }
 }
 
-// Return the current struct proc *, or zero if none.
+static mut DUMMY_PROC: Proc = Proc::default();
+// Return the current struct proc *, or zero if none. 
+// Here we return a dummy Proc if no proc on cpu.
 pub fn myproc() -> &'static mut Proc<'static> {
     push_off();
     let c = mycpu();
-    let p = c.proc.unwrap();
+    let p = c.proc.unwrap_or(unsafe { &mut DUMMY_PROC as *mut Proc });
     pop_off();
     unsafe { p.as_mut().unwrap() }
 }
