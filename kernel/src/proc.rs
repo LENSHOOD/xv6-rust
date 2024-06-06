@@ -38,12 +38,33 @@ struct Context {
     s11: u64,
 }
 
+impl Context {
+    pub(crate) const fn default() -> Self {
+        Self {
+            ra: 0,
+            sp: 0,
+            s0: 0,
+            s1: 0,
+            s2: 0,
+            s3: 0,
+            s4: 0,
+            s5: 0,
+            s6: 0,
+            s7: 0,
+            s8: 0,
+            s9: 0,
+            s10: 0,
+            s11: 0,
+        }
+    }
+}
+
 // Per-CPU state.
 #[derive(Copy, Clone)]
 pub struct Cpu<'a> {
     proc: Option<*mut Proc<'a>>,
     // The process running on this cpu, or null.
-    context: Option<Context>,
+    context: Context,
     // swtch() here to enter scheduler().
     pub noff: u8,
     // Depth of push_off() nesting.
@@ -54,7 +75,7 @@ impl<'a> Cpu<'a> {
     const fn default() -> Self {
         Cpu {
             proc: None,
-            context: None,
+            context: Context::default(),
             noff: 0,
             intena: false,
         }
@@ -178,22 +199,7 @@ impl<'a> Proc<'a> {
             sz: 0,
             pagetable: None,
             trapframe: None,
-            context: Context {
-                ra: 0,
-                sp: 0,
-                s0: 0,
-                s1: 0,
-                s2: 0,
-                s3: 0,
-                s4: 0,
-                s5: 0,
-                s6: 0,
-                s7: 0,
-                s8: 0,
-                s9: 0,
-                s10: 0,
-                s11: 0,
-            },
+            context: Context::default(),
             ofile: [None; NOFILE],
             cwd: None,
             name: [0; 16],
@@ -560,7 +566,7 @@ pub fn scheduler() {
                 // before jumping back to us.
                 p.state = RUNNING;
                 c.proc = Some(p);
-                unsafe { swtch(c.context.as_ref().unwrap(), &p.context) }
+                unsafe { swtch(&c.context, &p.context) }
 
                 // Process is done running for now.
                 // It should have changed its p->state before coming back.
@@ -599,7 +605,7 @@ fn sched() {
 
     let intena = mycpu().intena;
     unsafe {
-        swtch(&p.context, &mycpu().context.unwrap());
+        swtch(&p.context, &mycpu().context);
     }
     mycpu().intena = intena;
 }
