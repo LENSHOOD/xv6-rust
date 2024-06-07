@@ -13,7 +13,7 @@ use crate::string::memmove;
 use crate::trap::usertrapret;
 use crate::vm::{copyin, copyout, kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
 use crate::{printf, KSTACK};
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use core::{mem, ptr};
 
 // Saved registers for kernel context switches.
@@ -327,17 +327,17 @@ pub(crate) fn yield_curr_proc() {
 
 // A fork child's very first scheduling by scheduler()
 // will swtch to forkret.
+const FIRST: AtomicBool = AtomicBool::new(true);
 fn forkret() {
     // Still holding p->lock from scheduler.
     let my_proc = myproc();
     my_proc.lock.release();
 
-    let mut first = true;
-    if first {
+    if FIRST.load(Ordering::Relaxed) {
         // File system initialization must be run in the context of a
         // regular process (e.g., because it calls sleep), and thus cannot
         // be run from main().
-        first = false;
+        FIRST.store(false, Ordering::Relaxed);
         fs::fsinit(ROOTDEV);
     }
 
