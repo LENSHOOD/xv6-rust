@@ -168,8 +168,8 @@ extern "C" fn kerneltrap() {
 
     which_dev = devintr();
     if which_dev == 0 {
-        printf!("scause %{:x}\n", scause);
-        printf!("sepc=%{:x} stval=%{:x}\n", r_sepc(), r_stval());
+        printf!("scause {:x}\n", scause);
+        printf!("sepc={:x} stval={:x}\n", r_sepc(), r_stval());
         panic!("kerneltrap");
     }
 

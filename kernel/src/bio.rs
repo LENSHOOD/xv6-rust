@@ -56,16 +56,16 @@ pub fn binit() {
         // (we only have 4096-bytes kernel stack per CPU, see entry.S)
 
         // Create linked list of buffers
-        let mut head_ptr = *BCACHE.head.as_ptr();
-        head_ptr.prev = Some(BCACHE.head);
-        head_ptr.next = Some(BCACHE.head);
+        let head = BCACHE.head.as_ptr().as_mut().unwrap();
+        head.prev = Some(BCACHE.head);
+        head.next = Some(BCACHE.head);
         for b in &mut BCACHE.buf {
-            b.next = head_ptr.next;
+            b.next = head.next;
             b.prev = Some(BCACHE.head);
 
-            let head_next = head_ptr.next.unwrap();
-            (*head_next.as_ptr()).prev = NonNull::new(b as *mut Buf);
-            head_ptr.next = NonNull::new(b as *mut Buf);
+            let head_next = head.next.unwrap().as_mut();
+            head_next.prev = NonNull::new(b as *mut Buf);
+            head.next = NonNull::new(b as *mut Buf);
         }
     }
 }
@@ -78,36 +78,36 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
         BCACHE.lock.acquire();
 
         // Is the block already cached?
+        let head_ptr = BCACHE.head.as_ptr();
+        let head = head_ptr.as_ref().unwrap();
+        let mut b_ptr = head.next.unwrap().as_ptr();
         loop {
-            let head_ptr = BCACHE.head.as_ptr();
-            let head = *head_ptr;
-            let b_ptr = head.next.unwrap().as_ptr();
             if b_ptr == head_ptr {
                 break;
             }
 
-            let mut b = *b_ptr;
+            let b = b_ptr.as_mut().unwrap();
             if b.dev == dev && b.blockno == blockno {
                 b.refcnt += 1;
                 BCACHE.lock.release();
                 b.lock.acquire_sleep();
-                return &mut *head.next.unwrap().as_ptr();
+                return b;
             }
 
-            b = *b.next.unwrap().as_ptr();
+            b_ptr = b.next.unwrap().as_ptr();
         }
 
         // Not cached.
         // Recycle the least recently used (LRU) unused buffer.
+        let head_ptr = BCACHE.head.as_ptr();
+        let head = head_ptr.as_ref().unwrap();
+        let mut b_ptr = head.prev.unwrap().as_ptr();
         loop {
-            let head_ptr = BCACHE.head.as_ptr();
-            let head = *head_ptr;
-            let b_ptr = head.prev.unwrap().as_ptr();
             if b_ptr == head_ptr {
                 break;
             }
 
-            let mut b = *b_ptr;
+            let mut b = b_ptr.as_mut().unwrap();
             if b.refcnt == 0 {
                 b.dev = dev;
                 b.blockno = blockno;
@@ -115,10 +115,10 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
                 b.refcnt = 1;
                 BCACHE.lock.release();
                 b.lock.acquire_sleep();
-                return &mut *head.prev.unwrap().as_ptr();
+                return b;
             }
 
-            b = *b.prev.unwrap().as_ptr();
+            b_ptr = b.prev.unwrap().as_ptr();
         }
     }
 
@@ -158,15 +158,15 @@ pub fn brelse(b: &mut Buf) {
         BCACHE.lock.acquire();
         b.refcnt -= 1;
         if b.refcnt == 0 {
-            (*b.next.unwrap().as_ptr()).prev = b.prev;
-            (*b.prev.unwrap().as_ptr()).next = b.next;
+            b.next.unwrap().as_mut().prev = b.prev;
+            b.prev.unwrap().as_mut().next = b.next;
 
-            let mut head = *BCACHE.head.as_ptr();
+            let head = BCACHE.head.as_mut();
             b.next = head.next;
             b.prev = Some(BCACHE.head);
 
             let b = NonNull::new_unchecked(b as *mut Buf);
-            (*head.next.unwrap().as_ptr()).prev = Some(b);
+            head.next.unwrap().as_mut().prev = Some(b);
             head.next = Some(b);
         }
 
