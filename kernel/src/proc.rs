@@ -241,7 +241,7 @@ pub fn mycpu() -> &'static mut Cpu<'static> {
 }
 
 static mut DUMMY_PROC: Proc = Proc::default();
-// Return the current struct proc *, or zero if none. 
+// Return the current struct proc *, or zero if none.
 // Here we return a dummy Proc if no proc on cpu.
 pub fn myproc() -> &'static mut Proc<'static> {
     push_off();

@@ -63,7 +63,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     } else {
         printf!("no information available.\n");
     }
-    
+
     PANICKED.store(true, Ordering::Relaxed);
     abort();
 }
