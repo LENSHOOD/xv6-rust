@@ -177,7 +177,7 @@ pub fn virtio_disk_init() {
     // all NUM descriptors start out unused.
     for i in 0..NUM {
         unsafe {
-            (&mut DISK).free[i] = true;
+            DISK.free[i] = true;
         }
     }
 
@@ -188,8 +188,7 @@ pub fn virtio_disk_init() {
     // plic.c and trap.c arrange for interrupts from VIRTIO0_IRQ.
 }
 
-pub unsafe fn virtio_disk_rw(b: *mut Buf, write: bool) {
-    let b = b.as_mut().unwrap();
+pub unsafe fn virtio_disk_rw(b: &mut Buf, write: bool) {
     DISK.vdisk_lock.acquire();
 
     // the spec's Section 5.2 says that legacy block operations use

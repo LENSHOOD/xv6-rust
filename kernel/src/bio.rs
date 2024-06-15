@@ -129,7 +129,7 @@ fn bget(dev: u32, blockno: u32) -> &'static mut Buf {
 pub fn bread(dev: u32, blockno: u32) -> &'static mut Buf {
     let b = bget(dev, blockno);
     if !b.valid {
-        unsafe { virtio_disk_rw(b as *mut Buf, false) };
+        unsafe { virtio_disk_rw(b, false) };
         b.valid = true
     }
 
@@ -137,8 +137,8 @@ pub fn bread(dev: u32, blockno: u32) -> &'static mut Buf {
 }
 
 // Write b's contents to disk.  Must be locked.
-pub fn bwrite(b: *mut Buf) {
-    if !unsafe { b.as_mut() }.unwrap().lock.holding_sleep() {
+pub fn bwrite(b: &mut Buf) {
+    if !b.lock.holding_sleep() {
         panic!("bwrite");
     }
     unsafe {
