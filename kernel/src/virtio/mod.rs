@@ -53,6 +53,7 @@ const NUM: usize = 8;
 
 // a single descriptor, from the spec.
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct VirtqDesc {
     addr: u64,
     len: u32,
@@ -64,6 +65,7 @@ const VRING_DESC_F_WRITE: u16 = 2; // device writes (vs read)
 
 // the (entire) avail ring, from the spec.
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct VirtqAvail {
     flags: u16,       // always zero
     idx: u16,         // driver will write ring[idx] next
@@ -74,12 +76,14 @@ struct VirtqAvail {
 // one entry in the "used" ring, with which the
 // device tells the driver about completed requests.
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct VirtqUsedElem {
     id: u32, // index of start of completed descriptor chain
     len: u32,
 }
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct VirtqUsed {
     flags: u16, // always zero
     idx: u16,   // device increments when it adds a ring[] entry
@@ -96,6 +100,7 @@ const VIRTIO_BLK_T_OUT: u32 = 1; // write the disk
 // to be followed by two more descriptors containing
 // the block, and a one-byte status.
 #[derive(Copy, Clone)]
+#[repr(C)]
 struct VirtioBlkReq {
     desc_type: u32, // VIRTIO_BLK_T_IN or ..._OUT
     reserved: u32,
