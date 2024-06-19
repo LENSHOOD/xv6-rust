@@ -111,13 +111,13 @@ static mut SB: SuperBlock = SuperBlock {
 };
 
 impl SuperBlock {
-    fn readsb(self: &Self, dev: u32) {
+    fn readsb(self: &mut Self, dev: u32) {
         let bp = bread(dev, 1);
 
         let sz = size_of_val(self);
         let raw =
-            unsafe { core::slice::from_raw_parts(self as *const SuperBlock as *const u8, sz) };
-        bp.data[..sz].clone_from_slice(raw);
+            unsafe { core::slice::from_raw_parts_mut(self as *mut SuperBlock as *mut u8, sz) };
+        raw.clone_from_slice(&bp.data[..sz]);
         brelse(bp);
     }
 }
