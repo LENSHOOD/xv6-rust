@@ -330,7 +330,7 @@ unsafe fn free_chain(i: usize) {
         let flag = desc.flags;
         let nxt = desc.next;
         free_desc(i);
-        if flag & VRING_DESC_F_NEXT != 0 {
+        if flag & VRING_DESC_F_NEXT == 0 {
             break;
         }
 
