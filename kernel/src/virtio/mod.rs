@@ -33,19 +33,19 @@ const VIRTIO_MMIO_DEVICE_DESC_LOW: usize = 0x0a0; // physical address for used r
 const VIRTIO_MMIO_DEVICE_DESC_HIGH: usize = 0x0a4;
 
 // status register bits, from qemu virtio_config.h
-const VIRTIO_CONFIG_S_ACKNOWLEDGE: usize = 1;
-const VIRTIO_CONFIG_S_DRIVER: usize = 2;
-const VIRTIO_CONFIG_S_DRIVER_OK: usize = 4;
-const VIRTIO_CONFIG_S_FEATURES_OK: usize = 8;
+const VIRTIO_CONFIG_S_ACKNOWLEDGE: u32 = 1;
+const VIRTIO_CONFIG_S_DRIVER: u32 = 2;
+const VIRTIO_CONFIG_S_DRIVER_OK: u32 = 4;
+const VIRTIO_CONFIG_S_FEATURES_OK: u32 = 8;
 
 // device feature bits
-const VIRTIO_BLK_F_RO: usize = 5; /* Disk is read-only */
-const VIRTIO_BLK_F_SCSI: usize = 7; /* Supports scsi command passthru */
-const VIRTIO_BLK_F_CONFIG_WCE: usize = 11; /* Writeback mode available in config */
-const VIRTIO_BLK_F_MQ: usize = 12; /* support more than one vq */
-const VIRTIO_F_ANY_LAYOUT: usize = 27;
-const VIRTIO_RING_F_INDIRECT_DESC: usize = 28;
-const VIRTIO_RING_F_EVENT_IDX: usize = 29;
+const VIRTIO_BLK_F_RO: u32 = 5; /* Disk is read-only */
+const VIRTIO_BLK_F_SCSI: u32 = 7; /* Supports scsi command passthru */
+const VIRTIO_BLK_F_CONFIG_WCE: u32 = 11; /* Writeback mode available in config */
+const VIRTIO_BLK_F_MQ: u32 = 12; /* support more than one vq */
+const VIRTIO_F_ANY_LAYOUT: u32 = 27;
+const VIRTIO_RING_F_INDIRECT_DESC: u32 = 28;
+const VIRTIO_RING_F_EVENT_IDX: u32 = 29;
 
 // this many virtio descriptors.
 // must be a power of two.

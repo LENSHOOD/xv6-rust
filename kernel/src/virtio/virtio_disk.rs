@@ -17,13 +17,13 @@ use core::{mem, ptr};
 // the address of virtio mmio register r.
 macro_rules! Read_R {
     ( $r:expr ) => {
-        unsafe { (($crate::memlayout::VIRTIO0 + $r) as *const usize).read_volatile() as u32 }
+        unsafe { (($crate::memlayout::VIRTIO0 + $r) as *const u32).read_volatile() }
     };
 }
 
 macro_rules! Write_R {
     ( $r:expr, $val:expr ) => {
-        unsafe { (($crate::memlayout::VIRTIO0 + $r) as *mut usize).write_volatile($val as usize) }
+        unsafe { (($crate::memlayout::VIRTIO0 + $r) as *mut u32).write_volatile($val) }
     };
 }
 
@@ -125,7 +125,7 @@ pub fn virtio_disk_init() {
     Write_R!(VIRTIO_MMIO_STATUS, status);
 
     // re-read status to ensure FEATURES_OK is set.
-    status = Read_R!(VIRTIO_MMIO_STATUS) as usize;
+    status = Read_R!(VIRTIO_MMIO_STATUS);
     if !(status & VIRTIO_CONFIG_S_FEATURES_OK) == 0 {
         panic!("virtio disk FEATURES_OK unset");
     }
@@ -161,15 +161,15 @@ pub fn virtio_disk_init() {
     }
 
     // set queue size.
-    Write_R!(VIRTIO_MMIO_QUEUE_NUM, NUM);
+    Write_R!(VIRTIO_MMIO_QUEUE_NUM, NUM as u32);
 
     // write physical addresses.
-    Write_R!(VIRTIO_MMIO_QUEUE_DESC_LOW, DISK.desc.expose_addr());
-    Write_R!(VIRTIO_MMIO_QUEUE_DESC_HIGH, DISK.desc.expose_addr() >> 32);
-    Write_R!(VIRTIO_MMIO_DRIVER_DESC_LOW, DISK.avail.expose_addr());
-    Write_R!(VIRTIO_MMIO_DRIVER_DESC_HIGH, DISK.avail.expose_addr() >> 32);
-    Write_R!(VIRTIO_MMIO_DEVICE_DESC_LOW, DISK.used.expose_addr());
-    Write_R!(VIRTIO_MMIO_DEVICE_DESC_HIGH, DISK.used.expose_addr() >> 32);
+    Write_R!(VIRTIO_MMIO_QUEUE_DESC_LOW, DISK.desc.expose_addr() as u32);
+    Write_R!(VIRTIO_MMIO_QUEUE_DESC_HIGH, (DISK.desc.expose_addr() >> 32) as u32);
+    Write_R!(VIRTIO_MMIO_DRIVER_DESC_LOW, DISK.avail.expose_addr() as u32);
+    Write_R!(VIRTIO_MMIO_DRIVER_DESC_HIGH, (DISK.avail.expose_addr() >> 32) as u32);
+    Write_R!(VIRTIO_MMIO_DEVICE_DESC_LOW, DISK.used.expose_addr() as u32);
+    Write_R!(VIRTIO_MMIO_DEVICE_DESC_HIGH, (DISK.used.expose_addr() >> 32) as u32);
 
     // queue is ready.
     Write_R!(VIRTIO_MMIO_QUEUE_READY, 0x1);
