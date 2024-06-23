@@ -209,11 +209,11 @@ fn devintr() -> u8 {
         // irq indicates which device interrupted.
         let irq = plic_claim();
 
-        if irq == UART0_IRQ as i32 {
+        if irq == UART0_IRQ as u32 {
             unsafe {
                 UART_INSTANCE.intr();
             }
-        } else if irq == VIRTIO0_IRQ as i32 {
+        } else if irq == VIRTIO0_IRQ as u32 {
             unsafe {
                 virtio_disk_intr();
             }
@@ -224,7 +224,7 @@ fn devintr() -> u8 {
         // the PLIC allows each device to raise at most one
         // interrupt at a time; tell the PLIC the device is
         // now allowed to interrupt again.
-        if irq == 0 {
+        if irq != 0 {
             plic_complete(irq);
         }
 
