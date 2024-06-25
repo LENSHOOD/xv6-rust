@@ -144,9 +144,10 @@ pub fn usertrapret() {
     let userret_addr = (unsafe { &userret } as *const u8).expose_addr();
     let trampoline_userret = TRAMPOLINE + userret_addr - trampoline_addr;
 
+    type UserRetFn = unsafe extern "C" fn(stap: usize);
     unsafe {
-        let func = *(trampoline_userret as *const fn(stap: usize));
-        func(satp);
+        let userret_fn: UserRetFn = core::mem::transmute(trampoline_userret);
+        userret_fn(satp);
     };
 }
 
