@@ -18,7 +18,7 @@ pub(crate) fn sys_exec() -> u64 {
     let mut uarg: usize = 0;
     let uargv = argaddr(1);
 
-    let mut path: [u8; MAXPATH] = ['\0' as u8; MAXPATH];
+    let mut path: [u8; MAXPATH] = [b'\0'; MAXPATH];
     if argstr(0, &mut path as *mut u8, MAXPATH) < 0 {
         return u64::MAX;
     }
@@ -59,7 +59,7 @@ pub(crate) fn sys_exec() -> u64 {
 
     let mut ret = -1;
     if !bad {
-        ret = exec(&path, &argv);
+        ret = exec(path, &argv);
     }
 
     for i in 0..argv.len() {
@@ -84,15 +84,14 @@ pub(crate) fn sys_open() -> u64 {
     begin_op();
 
     let mut ip = None;
-    let path = unsafe { core::str::from_utf8_unchecked(&path) };
     if omode & O_CREATE != 0 {
-        ip = create(path, T_FILE, 0, 0);
+        ip = create(&path, T_FILE, 0, 0);
         if ip.is_none() {
             end_op();
             return -1i64 as u64;
         }
     } else {
-        ip = namei(path);
+        ip = namei(&path);
         if ip.is_none() {
             end_op();
             return -1i64 as u64;
@@ -175,8 +174,7 @@ pub(crate) fn sys_mknod() -> u64 {
         return -1i64 as u64;
     }
 
-    let path_str = unsafe { core::str::from_utf8_unchecked(&path) };
-    let ip = create(path_str, T_DEVICE, major, minor);
+    let ip = create(&path, T_DEVICE, major, minor);
     if ip.is_none() {
         end_op();
         return -1i64 as u64;
@@ -187,11 +185,11 @@ pub(crate) fn sys_mknod() -> u64 {
     return 0;
 }
 
-fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option<&'a mut INode> {
+fn create<'a>(path: &[u8], file_type: FileType, major: i16, minor: i16) -> Option<&'a mut INode> {
     let dp = nameiparent(path)?;
     dp.ilock();
 
-    let ip = dirlookup(dp, "", &mut 0);
+    let ip = dirlookup(dp, &[], &mut 0);
     if ip.is_some() {
         let ip = ip?;
         dp.iunlockput();
@@ -219,7 +217,7 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
     if file_type == T_DIR {
         // Create . and .. entries.
         // No ip->nlink++ for ".": avoid cyclic ref count.
-        if dirlink(ip, ".", ip.inum as u16).is_none() || dirlink(ip, "..", dp.inum as u16).is_none()
+        if dirlink(ip, &[b'.'], ip.inum as u16).is_none() || dirlink(ip, &[b'.', b'.'], dp.inum as u16).is_none()
         {
             // something went wrong. de-allocate ip.
             ip.nlink = 0;
@@ -230,7 +228,7 @@ fn create<'a>(path: &str, file_type: FileType, major: i16, minor: i16) -> Option
         }
     }
 
-    if dirlink(dp, "", ip.inum as u16).is_none() {
+    if dirlink(dp, &[], ip.inum as u16).is_none() {
         // something went wrong. de-allocate ip.
         ip.nlink = 0;
         ip.iupdate();

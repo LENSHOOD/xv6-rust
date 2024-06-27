@@ -21,13 +21,12 @@ fn flags2perm(flags: u32) -> usize {
     return perm;
 }
 
-pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
+pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     let p = myproc();
 
     begin_op();
 
-    let path = unsafe { core::str::from_utf8_unchecked(path) };
-    let ip_op = namei(path);
+    let ip_op = namei(&path);
     if ip_op.is_none() {
         end_op();
         return -1;
@@ -47,7 +46,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
         return goto_bad(None, 0, Some(ip));
     }
 
-    let mut page_table_op = proc_pagetable(p);
+    let page_table_op = proc_pagetable(p);
     if page_table_op.is_none() {
         return goto_bad(None, 0, Some(ip));
     }
@@ -162,7 +161,7 @@ pub fn exec(path: &[u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
 
     // Save program name for debugging.
     let mut name = [0; 16];
-    name.copy_from_slice(path.as_bytes());
+    name.copy_from_slice(&path);
     p.name = name;
 
     // Commit to the user image.

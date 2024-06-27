@@ -451,11 +451,11 @@ pub fn fsinit(dev: u32) {
     }
 }
 
-pub(crate) fn namei<'a>(path: &str) -> Option<&'a mut INode> {
+pub(crate) fn namei<'a>(path: &[u8]) -> Option<&'a mut INode> {
     namex(path, false)
 }
 
-pub(crate) fn nameiparent<'a>(path: &str) -> Option<&'a mut INode> {
+pub(crate) fn nameiparent<'a>(path: &[u8]) -> Option<&'a mut INode> {
     namex(path, false)
 }
 
@@ -463,8 +463,8 @@ pub(crate) fn nameiparent<'a>(path: &str) -> Option<&'a mut INode> {
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
-fn namex<'a>(path: &str, nameiparent: bool) -> Option<&'a mut INode> {
-    let mut ip = if path == "/" {
+fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
+    let mut ip = if path.len() == 1 && path[0] == b'/' {
         iget(ROOTDEV, ROOTINO)
     } else {
         let inode = myproc().cwd?;
@@ -571,8 +571,8 @@ fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
 }
 
 struct SubPath<'a> {
-    subpath: Option<&'a str>,
-    name: &'a str,
+    subpath: Option<&'a[u8]>,
+    name: &'a[u8],
 }
 
 // Paths
@@ -589,10 +589,9 @@ struct SubPath<'a> {
 //   skipelem("a", name) = "", setting name = "a"
 //   skipelem("", name) = skipelem("////", name) = 0
 //
-fn skipelem(path: &str) -> Option<SubPath> {
-    let path_slice = path.as_bytes();
+fn skipelem(path: &[u8]) -> Option<SubPath> {
     let mut i = 0;
-    for c in path_slice {
+    for c in path {
         if *c != b'/' {
             break;
         }
@@ -600,11 +599,11 @@ fn skipelem(path: &str) -> Option<SubPath> {
         i += 1;
     }
 
-    if i == path_slice.len() {
+    if i == path.len() {
         return None;
     }
 
-    let path_slice = &path_slice[i..];
+    let path_slice = &path[i..];
     let s = path_slice;
 
     i = 0;
@@ -618,13 +617,13 @@ fn skipelem(path: &str) -> Option<SubPath> {
 
     let mut sub_path = SubPath {
         subpath: None,
-        name: "",
+        name: &[0; 0],
     };
 
     if i > DIRSIZ {
         i = DIRSIZ;
     }
-    sub_path.name = unsafe { core::str::from_utf8_unchecked(&s[..i]) };
+    sub_path.name = &s[..i];
 
     let path_slice = &path_slice[i..];
     i = 0;
@@ -635,14 +634,14 @@ fn skipelem(path: &str) -> Option<SubPath> {
 
         i += 1;
     }
-    sub_path.subpath = Some(unsafe { core::str::from_utf8_unchecked(&path_slice[i..]) });
+    sub_path.subpath = Some(&path_slice[i..]);
 
     return Some(sub_path);
 }
 
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
-pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Option<&'a mut INode> {
+pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &[u8], poff: &mut u32) -> Option<&'a mut INode> {
     if dp.file_type != T_DIR {
         panic!("dirlookup not DIR");
     }
@@ -662,7 +661,7 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Optio
             continue;
         }
 
-        if name.as_bytes().eq(&de.name) {
+        if name.eq(&de.name) {
             // entry matches path element
             if *poff != 0 {
                 *poff = off;
@@ -676,7 +675,7 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &str, poff: &mut u32) -> Optio
 
 // Write a new directory entry (name, inum) into the directory dp.
 // Returns 0 on success, -1 on failure (e.g. out of disk blocks).
-pub(crate) fn dirlink(dp: &mut INode, name: &str, inum: u16) -> Option<()> {
+pub(crate) fn dirlink(dp: &mut INode, name: &[u8], inum: u16) -> Option<()> {
     // Check that name is not present.
     let ip = dirlookup(dp, name, &mut 0);
     if ip.is_some() {
