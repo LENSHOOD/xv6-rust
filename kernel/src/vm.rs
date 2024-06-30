@@ -507,8 +507,8 @@ pub fn copyinstr(page_table: &mut PageTable, dst: *mut u8, srcva: usize, max: us
         let mut p = (pa0 + (srcva - va0)) as *mut u8;
         unsafe {
             while n > 0 {
-                if *p == '\0' as u8 {
-                    *dst = '\0' as u8;
+                if *p == b'\0' {
+                    *dst = b'\0';
                     got_null = true;
                     break;
                 } else {

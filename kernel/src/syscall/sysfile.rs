@@ -18,7 +18,7 @@ pub(crate) fn sys_exec() -> u64 {
     let mut uarg: usize = 0;
     let uargv = argaddr(1);
 
-    let mut path: [u8; MAXPATH] = [b'\0'; MAXPATH];
+    let mut path = [b'\0'; MAXPATH];
     if argstr(0, &mut path as *mut u8, MAXPATH) < 0 {
         return u64::MAX;
     }
@@ -74,7 +74,7 @@ pub(crate) fn sys_exec() -> u64 {
 }
 
 pub(crate) fn sys_open() -> u64 {
-    let mut path: [u8; MAXPATH] = ['\0' as u8; MAXPATH];
+    let mut path = [b'\0'; MAXPATH];
     let omode = argint(1) as u64;
     let n = argstr(0, &mut path as *mut u8, MAXPATH);
     if n < 0 {

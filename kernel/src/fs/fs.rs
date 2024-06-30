@@ -74,12 +74,12 @@ use crate::fs::{
     ROOTINO,
 };
 use crate::log::{initlog, log_write};
-use crate::param::{NINODE, ROOTDEV};
+use crate::param::{MAXPATH, NINODE, ROOTDEV};
 use crate::proc::{either_copyin, either_copyout, myproc};
 use crate::spinlock::Spinlock;
 use crate::stat::FileType;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
-use crate::string::memset;
+use crate::string::{memmove, memset};
 use crate::{printf, BBLOCK, IBLOCK};
 use core::cmp::min;
 use core::mem;
@@ -470,21 +470,32 @@ fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
         let inode = myproc().cwd?;
         unsafe { inode.as_mut()?.idup() }
     };
+    
+    let mut sb = SubPath {
+        raw: path,
+        subpath: Some(0),
+        name: (0, 0)
+    };
 
-    while let Some(p) = skipelem(path) {
+    loop {
+        sb = skipelem(sb);
+        if sb.subpath.is_none() {
+            break;
+        }
+        
         ip.ilock();
         if ip.file_type != T_DIR {
             ip.iunlockput();
             return None;
         }
 
-        if nameiparent && p.subpath.is_none() {
+        if nameiparent && sb.raw[sb.subpath.unwrap()] == b'\0' {
             // Stop one level early.
             ip.iunlock();
             return Some(ip);
         }
 
-        match dirlookup(ip, p.name, &mut 0) {
+        match dirlookup(ip, &sb.raw[sb.name.0..sb.name.1], &mut 0) {
             next => {
                 if next.is_none() {
                     ip.iunlockput();
@@ -571,8 +582,9 @@ fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
 }
 
 struct SubPath<'a> {
-    subpath: Option<&'a[u8]>,
-    name: &'a[u8],
+    raw: &'a[u8],
+    subpath: Option<usize>,
+    name: (usize, usize),
 }
 
 // Paths
@@ -589,54 +601,42 @@ struct SubPath<'a> {
 //   skipelem("a", name) = "", setting name = "a"
 //   skipelem("", name) = skipelem("////", name) = 0
 //
-fn skipelem(path: &[u8]) -> Option<SubPath> {
-    let mut i = 0;
-    for c in path {
-        if *c != b'/' {
-            break;
-        }
-
-        i += 1;
+fn skipelem(sb: SubPath) -> SubPath {
+    if sb.subpath.is_none() { 
+        return sb;
+    }
+    
+    let mut subpath_idx = sb.subpath.unwrap();
+    while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] == b'/' {
+        subpath_idx += 1;
+    }
+    
+    if subpath_idx == sb.raw.len() || sb.raw[subpath_idx] == b'\0' {
+        return SubPath {
+            raw: sb.raw,
+            subpath: None,
+            name: (0, 0),
+        };
+    }
+    
+    let name_start = subpath_idx;
+    while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] != b'/' && sb.raw[subpath_idx] != b'\0' {
+        subpath_idx += 1;
+    }
+    let mut name_end = subpath_idx - name_start;
+    if name_end > DIRSIZ {
+        name_end = DIRSIZ;
     }
 
-    if i == path.len() {
-        return None;
+    while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] == b'/' {
+        subpath_idx += 1;
     }
-
-    let path_slice = &path[i..];
-    let s = path_slice;
-
-    i = 0;
-    for c in path_slice {
-        if *c == b'/' {
-            break;
-        }
-
-        i += 1;
+    
+    SubPath {
+        raw: sb.raw,
+        subpath: Some(subpath_idx),
+        name: (name_start, name_end)
     }
-
-    let mut sub_path = SubPath {
-        subpath: None,
-        name: &[0; 0],
-    };
-
-    if i > DIRSIZ {
-        i = DIRSIZ;
-    }
-    sub_path.name = &s[..i];
-
-    let path_slice = &path_slice[i..];
-    i = 0;
-    for c in path_slice {
-        if *c != b'/' {
-            break;
-        }
-
-        i += 1;
-    }
-    sub_path.subpath = Some(&path_slice[i..]);
-
-    return Some(sub_path);
 }
 
 // Look for a directory entry in a directory.
