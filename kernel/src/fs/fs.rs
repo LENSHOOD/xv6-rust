@@ -470,11 +470,11 @@ fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
         let inode = myproc().cwd?;
         unsafe { inode.as_mut()?.idup() }
     };
-    
+
     let mut sb = SubPath {
         raw: path,
         subpath: Some(0),
-        name: (0, 0)
+        name: (0, 0),
     };
 
     loop {
@@ -482,7 +482,7 @@ fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
         if sb.subpath.is_none() {
             break;
         }
-        
+
         ip.ilock();
         if ip.file_type != T_DIR {
             ip.iunlockput();
@@ -582,7 +582,7 @@ fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
 }
 
 struct SubPath<'a> {
-    raw: &'a[u8],
+    raw: &'a [u8],
     subpath: Option<usize>,
     name: (usize, usize),
 }
@@ -602,15 +602,15 @@ struct SubPath<'a> {
 //   skipelem("", name) = skipelem("////", name) = 0
 //
 fn skipelem(sb: SubPath) -> SubPath {
-    if sb.subpath.is_none() { 
+    if sb.subpath.is_none() {
         return sb;
     }
-    
+
     let mut subpath_idx = sb.subpath.unwrap();
     while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] == b'/' {
         subpath_idx += 1;
     }
-    
+
     if subpath_idx == sb.raw.len() || sb.raw[subpath_idx] == b'\0' {
         return SubPath {
             raw: sb.raw,
@@ -618,9 +618,10 @@ fn skipelem(sb: SubPath) -> SubPath {
             name: (0, 0),
         };
     }
-    
+
     let name_start = subpath_idx;
-    while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] != b'/' && sb.raw[subpath_idx] != b'\0' {
+    while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] != b'/' && sb.raw[subpath_idx] != b'\0'
+    {
         subpath_idx += 1;
     }
     let mut name_end = subpath_idx - name_start;
@@ -631,11 +632,11 @@ fn skipelem(sb: SubPath) -> SubPath {
     while subpath_idx < sb.raw.len() && sb.raw[subpath_idx] == b'/' {
         subpath_idx += 1;
     }
-    
+
     SubPath {
         raw: sb.raw,
         subpath: Some(subpath_idx),
-        name: (name_start, name_end)
+        name: (name_start, name_end),
     }
 }
 

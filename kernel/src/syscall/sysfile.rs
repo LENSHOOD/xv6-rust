@@ -217,7 +217,8 @@ fn create<'a>(path: &[u8], file_type: FileType, major: i16, minor: i16) -> Optio
     if file_type == T_DIR {
         // Create . and .. entries.
         // No ip->nlink++ for ".": avoid cyclic ref count.
-        if dirlink(ip, &[b'.'], ip.inum as u16).is_none() || dirlink(ip, &[b'.', b'.'], dp.inum as u16).is_none()
+        if dirlink(ip, &[b'.'], ip.inum as u16).is_none()
+            || dirlink(ip, &[b'.', b'.'], dp.inum as u16).is_none()
         {
             // something went wrong. de-allocate ip.
             ip.nlink = 0;

@@ -165,11 +165,20 @@ pub fn virtio_disk_init() {
 
     // write physical addresses.
     Write_R!(VIRTIO_MMIO_QUEUE_DESC_LOW, DISK.desc.expose_addr() as u32);
-    Write_R!(VIRTIO_MMIO_QUEUE_DESC_HIGH, (DISK.desc.expose_addr() >> 32) as u32);
+    Write_R!(
+        VIRTIO_MMIO_QUEUE_DESC_HIGH,
+        (DISK.desc.expose_addr() >> 32) as u32
+    );
     Write_R!(VIRTIO_MMIO_DRIVER_DESC_LOW, DISK.avail.expose_addr() as u32);
-    Write_R!(VIRTIO_MMIO_DRIVER_DESC_HIGH, (DISK.avail.expose_addr() >> 32) as u32);
+    Write_R!(
+        VIRTIO_MMIO_DRIVER_DESC_HIGH,
+        (DISK.avail.expose_addr() >> 32) as u32
+    );
     Write_R!(VIRTIO_MMIO_DEVICE_DESC_LOW, DISK.used.expose_addr() as u32);
-    Write_R!(VIRTIO_MMIO_DEVICE_DESC_HIGH, (DISK.used.expose_addr() >> 32) as u32);
+    Write_R!(
+        VIRTIO_MMIO_DEVICE_DESC_HIGH,
+        (DISK.used.expose_addr() >> 32) as u32
+    );
 
     // queue is ready.
     Write_R!(VIRTIO_MMIO_QUEUE_READY, 0x1);
