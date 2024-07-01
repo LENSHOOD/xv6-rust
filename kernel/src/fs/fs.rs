@@ -464,7 +464,7 @@ pub(crate) fn nameiparent<'a>(path: &[u8]) -> Option<&'a mut INode> {
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
 fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
-    let mut ip = if path.len() == 1 && path[0] == b'/' {
+    let mut ip = if path.len() >= 1 && path[0] == b'/' {
         iget(ROOTDEV, ROOTINO)
     } else {
         let inode = myproc().cwd?;

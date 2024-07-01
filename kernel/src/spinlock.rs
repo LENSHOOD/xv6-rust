@@ -89,10 +89,10 @@ pub fn push_off() {
 
     intr_off();
     let cpu = mycpu();
-    if (*cpu).noff == 0 {
-        (*cpu).intena = old;
+    if cpu.noff == 0 {
+        cpu.intena = old;
     }
-    (*cpu).noff += 1;
+    cpu.noff += 1;
 }
 
 pub fn pop_off() {
@@ -101,11 +101,11 @@ pub fn pop_off() {
         panic!("pop_off - interruptible");
     }
 
-    if (*cpu).noff < 1 {
+    if cpu.noff < 1 {
         panic!("pop_off");
     }
-    (*cpu).noff -= 1;
-    if (*cpu).noff == 0 && (*cpu).intena {
+    cpu.noff -= 1;
+    if cpu.noff == 0 && cpu.intena {
         intr_on();
     }
 }
