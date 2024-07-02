@@ -90,10 +90,20 @@ pub const TRAMPOLINE: usize = MAXVA - PGSIZE;
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.
+// --------
+// In our rust approach, it's quite easy to exhaust the one-page kernel stack, 
+// because we would intentionally or not to use the rust core lib to simplify 
+// the code. 
+// However once the sp register exceeds the process stack boundary 
+// and point to an illegal virtual address, then the risc-v will trap into an 
+// exception, with scause = 0xf (Store/AMO page fault) and store the illegal 
+// address into the stval. 
+// Therefore, we extend the kernel stack to two-pages, and still, with one guard 
+// page. Then each process will hold three pages in total for their kernel stack.
 #[macro_export]
 macro_rules! KSTACK {
     ( $p:expr ) => {
-        $crate::memlayout::TRAMPOLINE - (($p) + 1) * 2 * $crate::riscv::PGSIZE
+        $crate::memlayout::TRAMPOLINE - (($p) + 1) * 3 * $crate::riscv::PGSIZE
     };
 }
 
