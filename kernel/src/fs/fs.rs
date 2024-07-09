@@ -573,7 +573,7 @@ fn iget<'a>(dev: u32, inum: u32) -> &'a mut INode {
         ip.dev = dev;
         ip.inum = inum;
         ip.ref_cnt = 1;
-        ip.valid = true;
+        ip.valid = false;
 
         ITABLE.lock.release();
 
