@@ -32,6 +32,7 @@ const NINDIRECT: usize = BSIZE / mem::size_of::<u32>(); // BSIZE / sizeof(uint)
 const MAXFILE: usize = NDIRECT + NINDIRECT;
 
 // On-disk inode structure
+#[repr(C)]
 struct DINode {
     pub(crate) file_type: FileType,       // File type
     pub(crate) major: i16,                // Major device number (T_DEVICE only)

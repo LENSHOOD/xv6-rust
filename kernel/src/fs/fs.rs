@@ -495,7 +495,7 @@ fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
             return Some(ip);
         }
 
-        match dirlookup(ip, &sb.raw[sb.name.0..sb.name.1], &mut 0) {
+        match dirlookup(ip, &sb.raw[sb.name.0..sb.name.1 + 1], &mut 0) {
             next => {
                 if next.is_none() {
                     ip.iunlockput();
@@ -652,6 +652,10 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &[u8], poff: &mut u32) -> Opti
         name: [0; DIRSIZ],
     };
 
+    let mut dir_name = [0u8; DIRSIZ];
+    let len = min(name.len(), dir_name.len());
+    dir_name[..len].clone_from_slice(name);
+
     let sz = mem::size_of::<Dirent>();
     for off in (0..dp.size).step_by(sz) {
         if dp.readi(false, &mut de as *mut Dirent, off, sz) != sz {
@@ -662,7 +666,7 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &[u8], poff: &mut u32) -> Opti
             continue;
         }
 
-        if name.eq(&de.name) {
+        if dir_name.eq(&de.name) {
             // entry matches path element
             if *poff != 0 {
                 *poff = off;
