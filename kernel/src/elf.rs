@@ -3,6 +3,7 @@
 pub const ELF_MAGIC: u32 = 0x464C457F; // "\x7FELF" in little endian
 
 // File header
+#[repr(C)]
 pub struct ElfHeader {
     pub(crate) magic: u32, // must equal ELF_MAGIC
     pub(crate) elf: [u8; 12],
@@ -44,6 +45,7 @@ impl ElfHeader {
 }
 
 // Program section header
+#[repr(C)]
 pub struct ProgramHeader {
     pub(crate) hdr_type: u32,
     pub(crate) flags: u32,
