@@ -59,6 +59,9 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     let mut sz = 0;
     for _i in 0..elf.phnum {
         let tot = ip.readi(false, &mut ph, off, ph_sz);
+        // prepare for next loop
+        off += ph_sz as u32;
+        
         if tot != ph_sz {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
@@ -88,8 +91,6 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
         if loadseg(page_table, ph.vaddr, ip, ph.off, ph.filesz) < 0 {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
-
-        off += ph_sz as u32;
     }
     ip.iunlockput();
     end_op();
@@ -110,7 +111,7 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
 
     let mut sp = sz;
     let stackbase = sp - PGSIZE;
-    let argc = 0;
+    let mut argc = 0;
     let mut ustack: [usize; MAXARG] = [0; MAXARG];
     // Push argument strings, prepare rest of stack in ustack.
     loop {
@@ -118,7 +119,7 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
             break;
         }
         let curr_argv = argv[argc].unwrap();
-
+        
         if argc >= MAXARG {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
@@ -133,6 +134,8 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
         ustack[argc] = sp;
+
+        argc += 1;
     }
 
     ustack[argc] = 0;
@@ -160,9 +163,8 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
     tf.a1 = sp as u64;
 
     // Save program name for debugging.
-    let mut name = [0; 16];
-    name.copy_from_slice(&path);
-    p.name = name;
+    let name_len = mem::size_of_val(&p.name);
+    p.name.copy_from_slice(&path[..name_len]);
 
     // Commit to the user image.
     let oldpagetable = unsafe { p.pagetable.unwrap().as_mut().unwrap() };
