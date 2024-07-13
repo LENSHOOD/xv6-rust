@@ -300,7 +300,7 @@ impl INode {
                 self.addrs[NDIRECT] = addr;
             }
             let bp = bread(self.dev, addr);
-            let mut a: [u32; NINDIRECT] = unsafe { mem::transmute(bp.data) };
+            let a: &mut [u32; NINDIRECT] = unsafe { mem::transmute(&mut (bp.data)) };
             addr = a[bn];
             if addr == 0 {
                 addr = balloc(self.dev);

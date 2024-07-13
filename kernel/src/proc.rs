@@ -262,15 +262,15 @@ pub fn proc_mapstacks(kpgtbl: &mut PageTable) {
     for idx in 0..NPROC {
         unsafe {
             // 1st page of kernel stack
-            let pa_1: *mut u8 = KMEM.kalloc();
+            let pa_0: *mut u8 = KMEM.kalloc();
             // 2nd page of kernel stack
-            let pa_2: *mut u8 = KMEM.kalloc();
-            if pa_1.is_null() || pa_2.is_null() {
+            let pa_1: *mut u8 = KMEM.kalloc();
+            if pa_0.is_null() || pa_1.is_null() {
                 panic!("kalloc");
             }
             let va = KSTACK!(idx);
-            kvmmap(kpgtbl, va, pa_1 as usize, PGSIZE, PTE_R | PTE_W);
-            kvmmap(kpgtbl, va + PGSIZE, pa_2 as usize, PGSIZE, PTE_R | PTE_W);
+            kvmmap(kpgtbl, va, pa_0 as usize, PGSIZE, PTE_R | PTE_W);
+            kvmmap(kpgtbl, va + PGSIZE, pa_1 as usize, PGSIZE, PTE_R | PTE_W);
         }
     }
 }
