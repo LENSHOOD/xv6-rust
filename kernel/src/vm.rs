@@ -143,11 +143,11 @@ pub fn uvmunmap(pagetable: &mut PageTable, va: usize, npages: usize, do_free: bo
         panic!("uvmunmap: not aligned");
     }
 
-    for a in (va..npages * PGSIZE).step_by(PGSIZE) {
+    for a in (va..va + npages * PGSIZE).step_by(PGSIZE) {
         match walk(pagetable, a, 0) {
             None => panic!("uvmunmap: walk"),
             Some(pte) => {
-                if pte.0 & PTE_V == 1 {
+                if pte.0 & PTE_V == 0 {
                     panic!("uvmunmap: not mapped");
                 }
 
@@ -291,15 +291,13 @@ pub fn uvmfirst(pagetable: &mut PageTable, src: *const u8, sz: usize) {
 fn freewalk(pagetable: &mut PageTable) {
     // there are 2^9 = 512 PTEs in a page table.
     for pte in &mut pagetable.0 {
-        if pte.0 & PTE_V == 0 {
-            panic!("freewalk: leaf");
-        }
-
-        if (pte.0 & PTE_V) == 0 && pte.0 & (PTE_R | PTE_W | PTE_X) == 0 {
+        if ((pte.0 & PTE_V) == 1) && (pte.0 & (PTE_R | PTE_W | PTE_X) == 0) {
             // this PTE points to a lower-level page table.
             let child_pgtbl = unsafe { (PTE2PA!(pte.0) as *mut PageTable).as_mut().unwrap() };
             freewalk(child_pgtbl);
             *pte = Pte(0);
+        } else if pte.0 & PTE_V == 1 {
+            panic!("freewalk: leaf");
         }
     }
 
@@ -324,7 +322,7 @@ pub fn uvmalloc(page_table: &mut PageTable, oldsz: usize, newsz: usize, xperm: u
 
     let mut mem: *mut u8 = null_mut();
     let oldsz = PGROUNDUP!(oldsz);
-    for a in (0..newsz).step_by(PGSIZE) {
+    for a in (oldsz..newsz).step_by(PGSIZE) {
         mem = unsafe { KMEM.kalloc() };
         if mem.is_null() {
             uvmdealloc(page_table, a, oldsz);
@@ -334,17 +332,17 @@ pub fn uvmalloc(page_table: &mut PageTable, oldsz: usize, newsz: usize, xperm: u
         if mappages(
             page_table,
             a,
-            PGSIZE,
             mem.expose_addr(),
+            PGSIZE,
             PTE_R | PTE_U | xperm,
         ) != 0
         {
             unsafe {
                 KMEM.kfree(mem);
             }
+            uvmdealloc(page_table, a, oldsz);
+            return 0;
         }
-        uvmdealloc(page_table, a, oldsz);
-        return 0;
     }
 
     return newsz;
