@@ -12,7 +12,7 @@ mod buf;
 mod console;
 mod elf;
 mod exec;
-mod file;
+pub mod file;
 mod fs;
 mod kalloc;
 mod log;
@@ -51,7 +51,7 @@ extern "C" fn eh_personality() {}
 
 pub(crate) static PANICKED: AtomicBool = AtomicBool::new(false);
 #[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
+pub fn panic(info: &core::panic::PanicInfo) -> ! {
     printf!("Aborting: \n");
     if let Some(p) = info.location() {
         printf!(

@@ -16,4 +16,7 @@ path = "src/init.rs"
 name = "_echo"
 path = "src/echo.rs"
 
+[dependencies]
+kernel = { path = "../kernel" }
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

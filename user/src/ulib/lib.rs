@@ -7,6 +7,8 @@ use core::arch::global_asm;
 use core::fmt::Arguments;
 use core::fmt::{Error, Write};
 use core::result::{Result, Result::Ok};
+// panic_handler already defined in the kernel and needs to be imprted here
+use kernel::panic;
 
 global_asm!(include_str!("usys.S"));
 
@@ -18,13 +20,6 @@ macro_rules! printf
             ulib::printf(core::format_args!($($arg)*))
         }
     };
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        unsafe { core::arch::asm!("wfi") }
-    }
 }
 
 struct Printer(i32);
