@@ -9,14 +9,17 @@ use ulib::printf;
 use ulib::stubs::{dup, exec, exit, fork, mknod, open, wait};
 
 #[start]
-fn main(_argc: isize, argv: *const *const u8) -> isize {
+fn main(_argc: isize, _argv: *const *const u8) -> isize {
     unsafe {
-        if open("console" as *const str as *const u8, O_RDWR) < 0 {
-            mknod("console" as *const str as *const u8, CONSOLE as u16, 0);
-            open("console" as *const str as *const u8, O_RDWR);
+        // let mut console_slice: [u8; MAXPATH] = [b'\0'; MAXPATH];
+        // console_slice.copy_from_slice("console".as_bytes());
+        let mut console_slice = [b'c', b'o', b'n', b's', b'o', b'l', b'o', b'\0'];
+        if open(console_slice.as_ptr(), O_RDWR) < 0 {
+            mknod(console_slice.as_ptr(), CONSOLE as u16, 0);
+            open(console_slice.as_ptr(), O_RDWR);
         }
-        dup(0);  // stdout
-        dup(0);  // stderr
+        dup(0);  // stdout fd=1
+        dup(0);  // stderr fd=2
 
         let mut pid = 0;
         let mut wpid = 0;
@@ -28,6 +31,7 @@ fn main(_argc: isize, argv: *const *const u8) -> isize {
                 exit(1);
             }
             if pid == 0 {
+                let argv: *const *const u8 = (&["sh".as_bytes().as_ptr(), "".as_bytes().as_ptr()]).as_ptr();
                 exec("sh" as *const str as *const u8, argv);
                 printf!("init: exec sh failed\n");
                 exit(1);
