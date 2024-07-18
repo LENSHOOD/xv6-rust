@@ -452,23 +452,25 @@ pub fn fsinit(dev: u32) {
 }
 
 pub(crate) fn namei<'a>(path: &[u8]) -> Option<&'a mut INode> {
-    namex(path, false)
+    let (inode_op, _subpath) = namex(path, false);
+    return inode_op;
 }
 
-pub(crate) fn nameiparent<'a>(path: &[u8]) -> Option<&'a mut INode> {
-    namex(path, false)
+pub(crate) fn nameiparent<'a>(path: &[u8]) -> (Option<&'a mut INode>, &[u8]) {
+    let (inode_op, subpath) = namex(path, true);
+    return (inode_op, &path[subpath.name.0..subpath.name.1])
 }
 
 // Look up and return the inode for a path name.
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
-fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
+fn namex<'a>(path: &[u8], nameiparent: bool) -> (Option<&'a mut INode>, SubPath) {
     let mut ip = if path.len() >= 1 && path[0] == b'/' {
         iget(ROOTDEV, ROOTINO)
     } else {
-        let inode = myproc().cwd?;
-        unsafe { inode.as_mut()?.idup() }
+        let inode = myproc().cwd.unwrap();
+        unsafe { inode.as_mut().unwrap().idup() }
     };
 
     let mut sb = SubPath {
@@ -486,34 +488,34 @@ fn namex<'a>(path: &[u8], nameiparent: bool) -> Option<&'a mut INode> {
         ip.ilock();
         if ip.file_type != T_DIR {
             ip.iunlockput();
-            return None;
+            return (None, sb);
         }
 
         if nameiparent && sb.raw[sb.subpath.unwrap()] == b'\0' {
             // Stop one level early.
             ip.iunlock();
-            return Some(ip);
+            return (Some(ip), sb);
         }
 
         match dirlookup(ip, &sb.raw[sb.name.0..sb.name.1 + 1], &mut 0) {
             next => {
                 if next.is_none() {
                     ip.iunlockput();
-                    return None;
+                    return (None, sb);
                 }
 
                 ip.iunlockput();
                 ip = next.unwrap();
             }
         }
-
-        if nameiparent {
-            ip.iput();
-            return None;
-        }
     }
 
-    return Some(ip);
+    if nameiparent {
+        ip.iput();
+        return (None, sb);
+    }
+
+    return (Some(ip), sb);
 }
 
 // Allocate an inode on device dev.

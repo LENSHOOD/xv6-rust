@@ -186,10 +186,11 @@ pub(crate) fn sys_mknod() -> u64 {
 }
 
 fn create<'a>(path: &[u8], file_type: FileType, major: i16, minor: i16) -> Option<&'a mut INode> {
-    let dp = nameiparent(path)?;
+    let (dp, name) = nameiparent(path);
+    let dp = dp?;
     dp.ilock();
 
-    let ip = dirlookup(dp, &[], &mut 0);
+    let ip = dirlookup(dp, name, &mut 0);
     if ip.is_some() {
         let ip = ip?;
         dp.iunlockput();
@@ -229,7 +230,7 @@ fn create<'a>(path: &[u8], file_type: FileType, major: i16, minor: i16) -> Optio
         }
     }
 
-    if dirlink(dp, &[], ip.inum as u16).is_none() {
+    if dirlink(dp, name, ip.inum as u16).is_none() {
         // something went wrong. de-allocate ip.
         ip.nlink = 0;
         ip.iupdate();
