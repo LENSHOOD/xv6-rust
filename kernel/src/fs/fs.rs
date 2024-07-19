@@ -523,7 +523,7 @@ fn namex<'a>(path: &[u8], nameiparent: bool) -> (Option<&'a mut INode>, SubPath)
 // Returns an unlocked but allocated and referenced inode,
 // or NULL if there is no free inode.
 pub(crate) fn ialloc<'a>(dev: u32, file_type: FileType) -> Option<&'a mut INode> {
-    for inum in 0..unsafe { SB.ninodes } {
+    for inum in 1..unsafe { SB.ninodes } {
         let bp = bread(dev, unsafe { IBLOCK!(inum, SB) });
         let (_head, body, _tail) = unsafe {
             let ino_sz = mem::size_of::<DINode>();
@@ -713,8 +713,7 @@ pub(crate) fn dirlink(dp: &mut INode, name: &[u8], inum: u16) -> Option<()> {
         off += sz as u32;
     }
 
-    // Why need to copy de.name to name?
-    // strncpy(de.name, name, DIRSIZ);
+    de.name[..name.len()].clone_from_slice(name);
     de.inum = inum;
 
     if dp.writei(false, de as *mut Dirent, off, sz) == 0 {

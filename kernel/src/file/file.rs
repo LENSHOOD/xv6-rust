@@ -95,7 +95,7 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
         FD_DEVICE => {
             if f.major < 0
                 || f.major as usize >= NDEV
-                || unsafe { !DEVSW[f.major as usize].is_none() }
+                || unsafe { DEVSW[f.major as usize].is_none() }
             {
                 return -1;
             }
