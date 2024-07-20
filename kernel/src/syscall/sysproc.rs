@@ -13,10 +13,7 @@ pub(crate) fn sys_exit() -> u64 {
 }
 
 pub(crate) fn sys_fork() -> u64 {
-    return match fork() {
-        Some(pid) => pid,
-        None => u32::MAX,
-    } as u64;
+    return fork().unwrap_or_else(|| u32::MAX) as u64;
 }
 
 pub(crate) fn sys_wait() -> u64 {
@@ -42,10 +39,9 @@ fn fork() -> Option<u32> {
 
     // copy saved user registers.
     p.trapframe.map(|t| {
-        let sz = mem::size_of::<Trapframe>();
         let dest = np.trapframe.unwrap();
         unsafe {
-            t.copy_to(dest, sz);
+            t.copy_to(dest, 1);
         }
     });
 
