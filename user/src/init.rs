@@ -13,7 +13,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     unsafe {
         // let mut console_slice: [u8; MAXPATH] = [b'\0'; MAXPATH];
         // console_slice.copy_from_slice("console".as_bytes());
-        let mut console_slice = [b'c', b'o', b'n', b's', b'o', b'l', b'o', b'\0'];
+        let mut console_slice = "console\0".as_bytes();
         if open(console_slice.as_ptr(), O_RDWR) < 0 {
             mknod(console_slice.as_ptr(), CONSOLE as u16, 0);
             open(console_slice.as_ptr(), O_RDWR);
@@ -31,8 +31,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
                 exit(1);
             }
             if pid == 0 {
-                let argv: *const *const u8 = (&["sh".as_bytes().as_ptr(), "".as_bytes().as_ptr()]).as_ptr();
-                exec("sh" as *const str as *const u8, argv);
+                let argv: *const *const u8 = (&["sh\0".as_bytes().as_ptr(), "".as_bytes().as_ptr()]).as_ptr();
+                exec("sh\0".as_bytes().as_ptr(), argv);
                 printf!("init: exec sh failed\n");
                 exit(1);
             }
