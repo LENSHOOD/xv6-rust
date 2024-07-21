@@ -27,7 +27,7 @@ mod sleeplock;
 mod spinlock;
 mod start;
 mod stat;
-mod string;
+pub mod string;
 pub mod syscall;
 mod trap;
 mod uart;

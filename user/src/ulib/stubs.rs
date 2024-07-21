@@ -6,7 +6,7 @@ extern "C" {
     // int pipe(int*);
     pub fn write(fd: i32, addr: *const u8, n: i32) -> i32;
     // int read(int, void*, int);
-    // int close(int);
+    pub fn close(fd: i32);
     // int kill(int);
     pub fn exec(path: *const u8, argv: *const *const u8) -> i32;
     pub fn open(path: *const u8, omode: u64) -> i32;

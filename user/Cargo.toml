@@ -13,6 +13,10 @@ name = "_init"
 path = "src/init.rs"
 
 [[bin]]
+name = "_sh"
+path = "src/sh.rs"
+
+[[bin]]
 name = "_echo"
 path = "src/echo.rs"
 
