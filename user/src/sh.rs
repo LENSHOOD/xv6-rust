@@ -3,11 +3,53 @@
 
 extern crate kernel;
 
-use kernel::file::CONSOLE;
 use kernel::file::fcntl::O_RDWR;
 use kernel::string::{memset, strlen};
-use ulib::printf;
-use ulib::stubs::{close, dup, exec, exit, fork, mknod, open, wait, write};
+use ulib::{fprintf, gets};
+use ulib::stubs::{chdir, close, dup, exec, exit, fork, mknod, open, read, wait, write};
+
+// Parsed command representation
+const EXEC: i32 = 1;
+const REDIR: i32 = 2;
+const PIPE: i32 = 3;
+const LIST: i32 = 4;
+const BACK: i32 = 5;
+const MAXARGS: usize = 10;
+struct Cmd {
+    cmd_type: i32
+}
+
+struct ExecCmd {
+    cmd_type: i32,
+    argv: [u8; MAXARGS],
+    eargv: [u8; MAXARGS],
+}
+
+struct RedirCmd<'a> {
+    cmd_type: i32,
+    cmd: &'a Cmd,
+    file: *const u8,
+    efile: *const u8,
+    mode: i32,
+    fd: i32
+}
+
+struct PipeCmd<'a> {
+    cmd_type: i32,
+    left: &'a Cmd,
+    right: &'a Cmd,
+}
+
+struct ListCmd<'a> {
+    cmd_type: i32,
+    left: &'a Cmd,
+    right: &'a Cmd,
+}
+
+struct BackCmd<'a> {
+    cmd_type: i32,
+    cmd: &'a Cmd,
+}
 
 #[start]
 fn main(_argc: isize, _argv: *const *const u8) -> isize {
@@ -31,8 +73,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
         if buf[0] == b'c' && buf[1] == b'd' && buf[2] == b' ' {
             // Chdir must be called by the parent, not the child.
             buf[strlen(buf)-1] = 0;  // chop \n
-            if chdir(buf+3) < 0 {
-                fprintf(2, "cannot cd %s\n", buf+3);
+            if unsafe { chdir(buf+3) } < 0 {
+                fprintf!(2, "cannot cd {}\n", buf[3..]);
             }
             continue;
         }
@@ -56,3 +98,10 @@ fn getcmd(buf: *mut u8, nbuf: usize) -> i32 {
     return 0;
 }
 
+fn fork1() -> i32 {
+    let pid = unsafe { fork() };
+    if pid == -1 {
+        panic!("fork");
+    }
+    return pid;
+}

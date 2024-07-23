@@ -2,7 +2,7 @@
 
 pub mod stubs;
 
-use crate::stubs::write;
+use crate::stubs::{read, write};
 use core::arch::global_asm;
 use core::fmt::Arguments;
 use core::fmt::{Error, Write};
@@ -18,6 +18,16 @@ macro_rules! printf
 	($($arg:tt)*) => {
         unsafe {
             ulib::printf(core::format_args!($($arg)*))
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! fprintf
+{
+	($fd:expr, $($arg:tt)*) => {
+        unsafe {
+            ulib::fprintf($fd, core::format_args!($($arg)*))
         }
     };
 }
@@ -43,4 +53,24 @@ pub fn fprintf(fd: i32, args: Arguments<'_>) {
 
 pub fn printf(args: Arguments<'_>) {
     fprintf(1, args);
+}
+
+pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
+    let mut c: u8 = 0;
+    let mut i = 0;
+    while i+1 < max {
+        let cc = unsafe { read(0, &mut c as *mut u8, 1) };
+        if cc < 1 {
+            break
+        }
+
+        buf[i] = c;
+        i+=1;
+        if c == b'\n' || c == b'\r' {
+            break;
+        }
+    }
+
+    buf[i] = b'\0';
+    return buf;
 }

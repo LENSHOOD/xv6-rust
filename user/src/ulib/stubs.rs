@@ -5,7 +5,7 @@ extern "C" {
     pub fn wait(addr: *const u8) -> i32;
     // int pipe(int*);
     pub fn write(fd: i32, addr: *const u8, n: i32) -> i32;
-    // int read(int, void*, int);
+    pub fn read(fd: i32, addr: *mut u8, n: i32) -> i32;
     pub fn close(fd: i32);
     // int kill(int);
     pub fn exec(path: *const u8, argv: *const *const u8) -> i32;
@@ -15,7 +15,7 @@ extern "C" {
     // int fstat(int fd, struct stat*);
     // int link(const char*, const char*);
     // int mkdir(const char*);
-    // int chdir(const char*);
+    pub fn chdir(path: *const u8) -> i32;
     pub fn dup(fd: i32) -> i32;
     // int getpid(void);
     // char* sbrk(int);
