@@ -6,7 +6,7 @@ extern crate kernel;
 use kernel::file::fcntl::O_RDWR;
 use kernel::string::{memset, strlen};
 use ulib::{fprintf, gets};
-use ulib::stubs::{chdir, close, dup, exec, exit, fork, mknod, open, read, wait, write};
+use ulib::stubs::{chdir, close, dup, exec, exit, fork, mknod, open, pipe, read, wait, write};
 use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
 
 // Parsed command representation
@@ -24,16 +24,16 @@ trait Cmd {
 
 struct ExecCmd {
     cmd_type: CmdType,
-    argv: [u8; MAXARGS],
-    eargv: [u8; MAXARGS],
+    argv: [*const u8; MAXARGS],
+    eargv: [*const u8; MAXARGS],
 }
 
 impl ExecCmd {
     fn new() -> Self {
         Self {
             cmd_type: EXEC,
-            argv: [0; MAXARGS],
-            eargv: [0; MAXARGS],
+            argv: [0 as *const u8; MAXARGS],
+            eargv: [0 as *const u8; MAXARGS],
         }
     }
 }
@@ -44,7 +44,12 @@ impl Cmd for ExecCmd {
     }
 
     fn run(&self) {
-        todo!()
+        if self.argv[0] == 0 as *const u8 { 
+            unsafe { exit(1); }
+        }
+        
+        unsafe { exec(self.argv[0], self.argv.as_ptr()); }
+        fprintf!(2, "exec {} failed\n", self.argv[0]);
     }
 
     fn nulterminate(&self) {
@@ -80,7 +85,13 @@ impl Cmd for RedirCmd {
     }
 
     fn run(&self) {
-        todo!()
+        unsafe { close(self.fd); }
+        if unsafe { open(self.file.as_ptr(), self.mode as u64)} < 0{ 
+            fprintf!(2, "open {} failed\n", self.file);
+            unsafe { exit(1) };
+        }
+        
+        self.cmd.run();
     }
 
     fn nulterminate(&self) {
@@ -110,7 +121,34 @@ impl Cmd for PipeCmd {
     }
 
     fn run(&self) {
-        todo!()
+        let p = [0, 0];
+        if unsafe { pipe(p.as_ptr()) } < 0 {
+            panic!("pipe");
+        }
+        if fork1() == 0 {
+            unsafe {
+                close(1);
+                dup(p[1]);
+                close(p[0]);
+                close(p[1]);
+            }
+            self.left.run();
+        }
+        if fork1() == 0 {
+            unsafe {
+                close(0);
+                dup(p[0]);
+                close(p[0]);
+                close(p[1]);
+            }
+            self.right.run();
+        }
+        unsafe {
+            close(p[0]);
+            close(p[1]);
+            wait(0 as *const u8);
+            wait(0 as *const u8);
+        }
     }
 
     fn nulterminate(&self) {
@@ -140,7 +178,11 @@ impl Cmd for ListCmd {
     }
 
     fn run(&self) {
-        todo!()
+        if fork1() == 0 {
+            self.left.run();
+        }
+        unsafe { wait(0 as *const u8); }
+        self.right.run();
     }
 
     fn nulterminate(&self) {
@@ -168,7 +210,9 @@ impl Cmd for BackCmd {
     }
 
     fn run(&self) {
-        todo!()
+        if fork1() == 0 {
+            self.cmd.run();
+        }
     }
 
     fn nulterminate(&self) {

@@ -3,7 +3,7 @@ extern "C" {
     pub fn fork() -> i32;
     pub fn exit(status: i32) -> !;
     pub fn wait(addr: *const u8) -> i32;
-    // int pipe(int*);
+    pub fn pipe(fdarray: *const i32) -> i32;
     pub fn write(fd: i32, addr: *const u8, n: i32) -> i32;
     pub fn read(fd: i32, addr: *mut u8, n: i32) -> i32;
     pub fn close(fd: i32);
