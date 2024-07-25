@@ -7,48 +7,173 @@ use kernel::file::fcntl::O_RDWR;
 use kernel::string::{memset, strlen};
 use ulib::{fprintf, gets};
 use ulib::stubs::{chdir, close, dup, exec, exit, fork, mknod, open, read, wait, write};
+use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
 
 // Parsed command representation
-const EXEC: i32 = 1;
-const REDIR: i32 = 2;
-const PIPE: i32 = 3;
-const LIST: i32 = 4;
-const BACK: i32 = 5;
+#[derive(Copy, Clone)]
+enum CmdType {
+    EXEC, REDIR, PIPE, LIST, BACK
+}
+
 const MAXARGS: usize = 10;
-struct Cmd {
-    cmd_type: i32
+trait Cmd {
+    fn get_type(&self) -> CmdType;
+    fn run(&self);
+    fn nulterminate(&self);
 }
 
 struct ExecCmd {
-    cmd_type: i32,
+    cmd_type: CmdType,
     argv: [u8; MAXARGS],
     eargv: [u8; MAXARGS],
 }
 
+impl ExecCmd {
+    fn new() -> Self {
+        Self {
+            cmd_type: EXEC,
+            argv: [0; MAXARGS],
+            eargv: [0; MAXARGS],
+        }
+    }
+}
+
+impl Cmd for ExecCmd {
+    fn get_type(&self) -> CmdType {
+        self.cmd_type
+    }
+
+    fn run(&self) {
+        todo!()
+    }
+
+    fn nulterminate(&self) {
+        todo!()
+    }
+}
+
 struct RedirCmd<'a> {
-    cmd_type: i32,
-    cmd: &'a Cmd,
-    file: *const u8,
-    efile: *const u8,
+    cmd_type: CmdType,
+    cmd: &'a dyn Cmd,
+    file: &'a [u8],
+    efile: &'a [u8],
     mode: i32,
     fd: i32
 }
 
+impl RedirCmd {
+    fn new(subcmd: &dyn Cmd, file: &[u8], efile: &[u8], mode: i32, fd: i32) -> Self {
+        Self {
+            cmd_type: REDIR,
+            cmd: subcmd,
+            file,
+            efile,
+            mode,
+            fd,
+        }
+    }
+}
+
+impl Cmd for RedirCmd {
+    fn get_type(&self) -> CmdType {
+        self.cmd_type
+    }
+
+    fn run(&self) {
+        todo!()
+    }
+
+    fn nulterminate(&self) {
+        todo!()
+    }
+}
+
 struct PipeCmd<'a> {
-    cmd_type: i32,
-    left: &'a Cmd,
-    right: &'a Cmd,
+    cmd_type: CmdType,
+    left: &'a dyn Cmd,
+    right: &'a dyn Cmd,
+}
+
+impl PipeCmd {
+    fn new(leftcmd: &dyn Cmd, rightcmd: &dyn Cmd,) -> Self {
+        Self {
+            cmd_type: PIPE,
+            left: leftcmd,
+            right: rightcmd,
+        }
+    }
+}
+
+impl Cmd for PipeCmd {
+    fn get_type(&self) -> CmdType {
+        self.cmd_type
+    }
+
+    fn run(&self) {
+        todo!()
+    }
+
+    fn nulterminate(&self) {
+        todo!()
+    }
 }
 
 struct ListCmd<'a> {
-    cmd_type: i32,
-    left: &'a Cmd,
-    right: &'a Cmd,
+    cmd_type: CmdType,
+    left: &'a dyn Cmd,
+    right: &'a dyn Cmd,
+}
+
+impl ListCmd {
+    fn new(leftcmd: &dyn Cmd, rightcmd: &dyn Cmd) -> Self {
+        Self {
+            cmd_type: LIST,
+            left: leftcmd,
+            right: rightcmd,
+        }
+    }
+}
+
+impl Cmd for ListCmd {
+    fn get_type(&self) -> CmdType {
+        self.cmd_type
+    }
+
+    fn run(&self) {
+        todo!()
+    }
+
+    fn nulterminate(&self) {
+        todo!()
+    }
 }
 
 struct BackCmd<'a> {
-    cmd_type: i32,
-    cmd: &'a Cmd,
+    cmd_type: CmdType,
+    cmd: &'a dyn Cmd,
+}
+
+impl BackCmd {
+    fn new(subcmd: &dyn Cmd) -> Self {
+        Self {
+            cmd_type: BACK,
+            cmd: subcmd
+        }
+    }
+}
+
+impl Cmd for BackCmd {
+    fn get_type(&self) -> CmdType {
+        self.cmd_type
+    }
+
+    fn run(&self) {
+        todo!()
+    }
+
+    fn nulterminate(&self) {
+        todo!()
+    }
 }
 
 #[start]
