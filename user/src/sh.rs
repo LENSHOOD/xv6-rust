@@ -19,7 +19,7 @@ const MAXARGS: usize = 10;
 trait Cmd {
     fn get_type(&self) -> CmdType;
     fn run(&self);
-    fn nulterminate(&self);
+    fn nulterminate(&mut self);
 }
 
 struct ExecCmd {
@@ -52,8 +52,10 @@ impl Cmd for ExecCmd {
         fprintf!(2, "exec {} failed\n", self.argv[0]);
     }
 
-    fn nulterminate(&self) {
-        todo!()
+    fn nulterminate(&mut self) {
+        for i in 0..MAXARGS {
+            self.argv[i] = 0 as *const u8;
+        }
     }
 }
 
@@ -94,8 +96,9 @@ impl Cmd for RedirCmd {
         self.cmd.run();
     }
 
-    fn nulterminate(&self) {
-        todo!()
+    fn nulterminate(&mut self) {
+        self.cmd.nulterminate();
+        self.efile = &[0];
     }
 }
 
@@ -151,8 +154,9 @@ impl Cmd for PipeCmd {
         }
     }
 
-    fn nulterminate(&self) {
-        todo!()
+    fn nulterminate(&mut self) {
+        self.left.nulterminate();
+        self.right.nulterminate();
     }
 }
 
@@ -185,8 +189,9 @@ impl Cmd for ListCmd {
         self.right.run();
     }
 
-    fn nulterminate(&self) {
-        todo!()
+    fn nulterminate(&mut self) {
+        self.left.nulterminate();
+        self.right.nulterminate();
     }
 }
 
@@ -215,8 +220,8 @@ impl Cmd for BackCmd {
         }
     }
 
-    fn nulterminate(&self) {
-        todo!()
+    fn nulterminate(&mut self) {
+        self.cmd.nulterminate();
     }
 }
 
