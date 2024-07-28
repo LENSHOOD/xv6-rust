@@ -74,3 +74,13 @@ pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
     buf[i] = b'\0';
     return buf;
 }
+
+pub fn strchr(s: &[u8], c: u8) -> usize {
+    for i in 0..s.len() {
+        if s[i] == c { 
+            return i;
+        }
+    }
+    
+    0
+}
