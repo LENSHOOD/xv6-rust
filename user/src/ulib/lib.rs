@@ -64,14 +64,14 @@ pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
             break
         }
 
-        buf[i] = c;
+        unsafe { buf.add(i).write(c); }
         i+=1;
         if c == b'\n' || c == b'\r' {
             break;
         }
     }
 
-    buf[i] = b'\0';
+    unsafe { buf.add(i).write(b'\0');; }
     return buf;
 }
 

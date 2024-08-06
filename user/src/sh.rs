@@ -49,7 +49,7 @@ impl Cmd for ExecCmd {
         }
         
         unsafe { exec(self.argv[0], self.argv.as_ptr()); }
-        fprintf!(2, "exec {} failed\n", self.argv[0]);
+        fprintf!(2, "exec {} failed\n", self.argv[0].as_ref().unwrap());
     }
 
     fn nulterminate(&mut self) {
@@ -61,15 +61,15 @@ impl Cmd for ExecCmd {
 
 struct RedirCmd<'a> {
     cmd_type: CmdType,
-    cmd: &'a dyn Cmd,
+    cmd: &'a mut dyn Cmd,
     file: &'a mut [u8],
     efile: usize,
     mode: i32,
     fd: i32
 }
 
-impl RedirCmd {
-    fn new(subcmd: &dyn Cmd, file: &mut [u8], efile: usize, mode: i32, fd: i32) -> Self {
+impl<'a> RedirCmd<'a> {
+    fn new(subcmd: &'a mut dyn Cmd, file: &'a mut [u8], efile: usize, mode: i32, fd: i32) -> Self {
         Self {
             cmd_type: REDIR,
             cmd: subcmd,
@@ -81,7 +81,7 @@ impl RedirCmd {
     }
 }
 
-impl Cmd for RedirCmd {
+impl<'a> Cmd for RedirCmd<'a> {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -89,7 +89,7 @@ impl Cmd for RedirCmd {
     fn run(&self) {
         unsafe { close(self.fd); }
         if unsafe { open(self.file.as_ptr(), self.mode as u64)} < 0{ 
-            fprintf!(2, "open {} failed\n", self.file);
+            fprintf!(2, "open {:?} failed\n", self.file);
             unsafe { exit(1) };
         }
         
@@ -104,12 +104,12 @@ impl Cmd for RedirCmd {
 
 struct PipeCmd<'a> {
     cmd_type: CmdType,
-    left: &'a dyn Cmd,
-    right: &'a dyn Cmd,
+    left: &'a mut dyn Cmd,
+    right: &'a mut dyn Cmd,
 }
 
-impl PipeCmd {
-    fn new(leftcmd: &dyn Cmd, rightcmd: &dyn Cmd,) -> Self {
+impl<'a> PipeCmd<'a> {
+    fn new(leftcmd: &'a mut dyn Cmd, rightcmd: &'a mut dyn Cmd,) -> Self {
         Self {
             cmd_type: PIPE,
             left: leftcmd,
@@ -118,7 +118,7 @@ impl PipeCmd {
     }
 }
 
-impl Cmd for PipeCmd {
+impl<'a> Cmd for PipeCmd<'a> {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -162,12 +162,12 @@ impl Cmd for PipeCmd {
 
 struct ListCmd<'a> {
     cmd_type: CmdType,
-    left: &'a dyn Cmd,
-    right: &'a dyn Cmd,
+    left: &'a mut dyn Cmd,
+    right: &'a mut dyn Cmd,
 }
 
-impl ListCmd {
-    fn new(leftcmd: &dyn Cmd, rightcmd: &dyn Cmd) -> Self {
+impl<'a> ListCmd<'a> {
+    fn new(leftcmd: &'a mut dyn Cmd, rightcmd: &'a mut dyn Cmd) -> Self {
         Self {
             cmd_type: LIST,
             left: leftcmd,
@@ -176,7 +176,7 @@ impl ListCmd {
     }
 }
 
-impl Cmd for ListCmd {
+impl<'a> Cmd for ListCmd<'a> {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -197,11 +197,11 @@ impl Cmd for ListCmd {
 
 struct BackCmd<'a> {
     cmd_type: CmdType,
-    cmd: &'a dyn Cmd,
+    cmd: &'a mut dyn Cmd,
 }
 
-impl BackCmd {
-    fn new(subcmd: &dyn Cmd) -> Self {
+impl<'a> BackCmd<'a> {
+    fn new(subcmd: &'a mut dyn Cmd) -> Self {
         Self {
             cmd_type: BACK,
             cmd: subcmd
@@ -209,7 +209,7 @@ impl BackCmd {
     }
 }
 
-impl Cmd for BackCmd {
+impl<'a> Cmd for BackCmd<'a> {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -270,12 +270,12 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
             // Chdir must be called by the parent, not the child.
             buf[strlen(buf as *const u8)-1] = 0;  // chop \n
             if unsafe { chdir((buf as *mut u8).add(3)) } < 0 {
-                fprintf!(2, "cannot cd {}\n", buf[3..]);
+                fprintf!(2, "cannot cd {:?}\n", &buf[3..]);
             }
             continue;
         }
         if fork1() == 0 {
-            parsecmd(&mut cmdline).run();
+            parsecmd(cmdline).run();
         }
         unsafe { wait(0 as *const u8); }
     }
@@ -302,12 +302,12 @@ fn fork1() -> i32 {
     return pid;
 }
 
-fn parsecmd(cmdline: &mut Cmdline) -> &dyn Cmd {
+fn parsecmd<'a>(mut cmdline: Cmdline) -> &'a dyn Cmd {
     cmdline.end = strlen(&cmdline.buf as *const u8);
-    let cmd = parseline(cmdline);
-    peek(cmdline, "".as_bytes());
+    let cmd = parseline(&mut cmdline);
+    peek(&mut cmdline, "".as_bytes());
     if cmdline.idx != cmdline.end {
-        fprintf!(2, "leftovers: {}\n", &cmdline.buf);
+        fprintf!(2, "leftovers: {:?}\n", cmdline.buf);
         panic!("syntax");
     }
     cmd.nulterminate();
@@ -383,8 +383,8 @@ fn parseblock(cmdline: &mut Cmdline) -> &mut dyn Cmd {
     return cmd;
 }
 
-fn parseredirs(cmd: &mut dyn Cmd, cmdline: &mut Cmdline) -> &mut dyn Cmd {
-    let tok;
+fn parseredirs<'a>(cmd: &'a mut dyn Cmd, cmdline: &'a mut Cmdline) -> &mut dyn Cmd {
+    let mut tok = 0;
     let mut cmd = cmd;
     while peek(cmdline, &[b'<', b'>']) {
         let mut q = 0;
@@ -404,7 +404,7 @@ fn parseredirs(cmd: &mut dyn Cmd, cmdline: &mut Cmdline) -> &mut dyn Cmd {
     return cmd;
 }
 
-fn gettoken(cmdline: &mut Cmdline, q: Some(&mut usize), mut eq: Some(&mut usize)) -> u8 {
+fn gettoken(cmdline: &mut Cmdline, q: Option<&mut usize>, mut eq: Option<&mut usize>) -> u8 {
     while cmdline.idx < cmdline.end && strchr(&whitespace, cmdline.get_cur()) != 0 {
         cmdline.idx += 1;
     }
@@ -443,7 +443,7 @@ fn gettoken(cmdline: &mut Cmdline, q: Some(&mut usize), mut eq: Some(&mut usize)
     return ret;
 }
 
-const whitespace: [u8; 5] = [b' ', b'\t', b'\r', b'\n', b'\v'];
+const whitespace: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
 const symbols: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
 fn peek(cmdline: &mut Cmdline, toks: &[u8]) -> bool {
     let s = &cmdline.buf;
