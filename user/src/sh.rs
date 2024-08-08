@@ -3,10 +3,11 @@
 
 extern crate kernel;
 
+use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
-use kernel::string::{memset, strlen};
-use ulib::{fprintf, gets, strchr};
-use ulib::stubs::{chdir, close, dup, exec, exit, fork, mknod, open, pipe, read, wait, write};
+use kernel::string::strlen;
+use ulib::{fprintf, strchr};
+use ulib::stubs::{chdir, close, dup, exec, exit, fork, open, pipe, read, wait, write};
 use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
 
 // Parsed command representation
@@ -225,10 +226,9 @@ impl<'a> Cmd for BackCmd<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
 struct Cmdline {
     buf: [u8; 100],
-    idx: usize,
+    idx: AtomicUsize,
     end: usize
 }
 
@@ -236,13 +236,13 @@ impl Cmdline {
     fn new() -> Self {
         Self {
             buf: [0; 100],
-            idx: 0,
+            idx: AtomicUsize::new(0),
             end: 0,
         }
     }
     
     fn get_cur(&self) -> u8 {
-        self.buf[self.idx]
+        self.buf[self.idx.load(Ordering::Relaxed)]
     }
     
     fn gets(&mut self) {
@@ -268,7 +268,7 @@ impl Cmdline {
         self.end = strlen(&self.buf as *const u8);
         let cmd = self.parseline();
         self.peek("".as_bytes());
-        if self.idx != self.end {
+        if self.idx.load(Ordering::Relaxed) != self.end {
             fprintf!(2, "leftovers: {:?}\n", self.buf);
             panic!("syntax");
         }
@@ -276,7 +276,7 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parseline(&mut self) -> &mut dyn Cmd {
+    fn parseline(&self) -> &mut dyn Cmd {
         let mut cmd = self.parsepipe();
         while self.peek(&[b'&']) {
             self.gettoken(None, None);
@@ -289,7 +289,7 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parsepipe(&mut self) -> &mut dyn Cmd {
+    fn parsepipe(&self) -> &mut dyn Cmd {
         let mut cmd = self.parseexec();
         if self.peek(&[b'|']) {
             self.gettoken(None, None);
@@ -298,7 +298,7 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parseexec(&mut self) -> &mut dyn Cmd {
+    fn parseexec(&self) -> &mut dyn Cmd {
         if self.peek(&[b'(']) {
             return self.parseblock();
         }
@@ -307,7 +307,7 @@ impl Cmdline {
         let mut ret: &mut dyn Cmd = &mut cmd;
 
         let mut argc = 0;
-        let mut tok = 0;
+        let mut tok;
         ret = self.parseredirs(ret);
         while !self.peek(&[b'|', b')', b'&', b';']) {
             let mut q = 0;
@@ -318,6 +318,7 @@ impl Cmdline {
             } else if tok != b'a' {
                 panic!("syntax");
             }
+
             (&mut cmd).argv[argc] = (&self.buf[q..eq]).as_ptr();
             (&mut cmd).eargv[argc] = eq;
             argc += 1;
@@ -331,7 +332,7 @@ impl Cmdline {
         return ret;
     }
 
-    fn parseblock(&mut self) -> &mut dyn Cmd {
+    fn parseblock(&self) -> &mut dyn Cmd {
         if !self.peek(&[b'(']) {
             panic!("parseblock");
         }
@@ -345,8 +346,8 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parseredirs<'a>(&mut self, cmd: &'a mut dyn Cmd) -> &mut dyn Cmd {
-        let mut tok = 0;
+    fn parseredirs<'a>(&self, cmd: &'a mut dyn Cmd) -> &mut dyn Cmd {
+        let mut tok;
         let mut cmd = cmd;
         while self.peek(&[b'<', b'>']) {
             let mut q = 0;
@@ -355,11 +356,11 @@ impl Cmdline {
             if self.gettoken(Some(&mut q), Some(&mut eq)) != b'a' {
                 panic!("missing file for redirection");
             }
-            let file = &mut self.buf[q..eq];
+            let file = &self.buf[q..eq];
             cmd = match tok {
-                b'<' => &mut RedirCmd::new(cmd, file, eq, O_RDONLY as i32, 0),
-                b'>' => &mut RedirCmd::new(cmd, file, eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1),
-                b'+' => &mut RedirCmd::new(cmd, file, eq, (O_WRONLY|O_CREATE) as i32, 1),
+                b'<' => &mut RedirCmd::new(cmd, &mut file.clone(), eq, O_RDONLY as i32, 0),
+                b'>' => &mut RedirCmd::new(cmd, &mut file.clone(), eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1),
+                b'+' => &mut RedirCmd::new(cmd, &mut file.clone(), eq, (O_WRONLY|O_CREATE) as i32, 1),
                 _ => cmd
             }
         }
@@ -368,48 +369,47 @@ impl Cmdline {
 
     const whitespace: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
     const symbols: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
-    fn peek(&mut self, toks: &[u8]) -> bool {
-        let s = &self.buf;
-        while self.idx < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
-            self.idx += 1;
+    fn peek(&self, toks: &[u8]) -> bool {
+        while self.idx.load(Ordering::Relaxed) < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+            self.idx.fetch_add(1, Ordering::Relaxed);
         }
         return self.get_cur() != 0 && strchr(toks, self.get_cur()) != 0;
     }
-    fn gettoken(&mut self, q: Option<&mut usize>, mut eq: Option<&mut usize>) -> u8 {
-        while self.idx < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
-            self.idx += 1;
+    fn gettoken(&self, q: Option<&mut usize>, eq: Option<&mut usize>) -> u8 {
+        while self.idx.load(Ordering::Relaxed) < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+            self.idx.fetch_add(1, Ordering::Relaxed);
         }
         if let Some(q) = q {
-            *q = self.idx;
+            *q = self.idx.load(Ordering::Relaxed);
         }
         let mut ret = self.get_cur();
         match self.get_cur() {
             b'\0' => (),
-            b'|' | b'(' | b')' | b';' | b'&' | b'<' => self.idx += 1,
+            b'|' | b'(' | b')' | b';' | b'&' | b'<' => { self.idx.fetch_add(1, Ordering::Relaxed); },
             b'>' => {
-                self.idx += 1;
+                self.idx.fetch_add(1, Ordering::Relaxed);
                 if self.get_cur() == b'>' {
                     ret = b'+';
-                    self.idx += 1;
+                    self.idx.fetch_add(1, Ordering::Relaxed);
                 }
             }
             _ => {
                 ret = b'a';
-                while self.idx < self.end
+                while self.idx.load(Ordering::Relaxed) < self.end
                     && strchr(&Self::whitespace, self.get_cur()) != 0
                     && !strchr(&Self::symbols, self.get_cur()) != 0 {
 
-                    self.idx += 1;
+                    self.idx.fetch_add(1, Ordering::Relaxed);
                 }
             }
         }
 
-        if let Some(mut eq) = eq {
-            *eq = self.idx;
+        if let Some(eq) = eq {
+            *eq = self.idx.load(Ordering::Relaxed);
         }
 
-        while self.idx < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
-            self.idx += 1;
+        while self.idx.load(Ordering::Relaxed) < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+            self.idx.fetch_add(1, Ordering::Relaxed);
         }
         return ret;
     }
@@ -432,8 +432,6 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     }
 
     // Read and run input commands.
-    let mut buf_raw: [u8; 100] = [0; 100];
-    let buf = buf_raw.as_mut_ptr();
     while let Some(mut cmdline) = getcmd() {
         let buf = &mut cmdline.buf;
         if buf[0] == b'c' && buf[1] == b'd' && buf[2] == b' ' {
