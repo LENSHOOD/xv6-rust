@@ -244,6 +244,176 @@ impl Cmdline {
     fn get_cur(&self) -> u8 {
         self.buf[self.idx]
     }
+    
+    fn gets(&mut self) {
+        let mut c: u8 = 0;
+        let mut i = 0;
+        while i+1 < self.buf.len() {
+            let cc = unsafe { read(0, &mut c as *mut u8, 1) };
+            if cc < 1 {
+                break
+            }
+
+            self.buf[i] = c;
+            i+=1;
+            if c == b'\n' || c == b'\r' {
+                break;
+            }
+        }
+
+        self.buf[i] = b'\0';
+    }
+    
+    fn parsecmd<'a>(&mut self) -> &'a dyn Cmd {
+        self.end = strlen(&self.buf as *const u8);
+        let cmd = self.parseline();
+        self.peek("".as_bytes());
+        if self.idx != self.end {
+            fprintf!(2, "leftovers: {:?}\n", self.buf);
+            panic!("syntax");
+        }
+        cmd.nulterminate();
+        return cmd;
+    }
+
+    fn parseline(&mut self) -> &mut dyn Cmd {
+        let mut cmd = self.parsepipe();
+        while self.peek(&[b'&']) {
+            self.gettoken(None, None);
+            cmd = &mut BackCmd::new(cmd);
+        }
+        if self.peek(&[b';']) {
+            self.gettoken(None, None);
+            cmd = &mut ListCmd::new(cmd, self.parseline());
+        }
+        return cmd;
+    }
+
+    fn parsepipe(&mut self) -> &mut dyn Cmd {
+        let mut cmd = self.parseexec();
+        if self.peek(&[b'|']) {
+            self.gettoken(None, None);
+            cmd = &mut PipeCmd::new(cmd, self.parsepipe());
+        }
+        return cmd;
+    }
+
+    fn parseexec(&mut self) -> &mut dyn Cmd {
+        if self.peek(&[b'(']) {
+            return self.parseblock();
+        }
+
+        let mut cmd = ExecCmd::new();
+        let mut ret: &mut dyn Cmd = &mut cmd;
+
+        let mut argc = 0;
+        let mut tok = 0;
+        ret = self.parseredirs(ret);
+        while !self.peek(&[b'|', b')', b'&', b';']) {
+            let mut q = 0;
+            let mut eq = 0;
+            tok = self.gettoken(Some(&mut q), Some(&mut eq));
+            if tok == 0 {
+                break;
+            } else if tok != b'a' {
+                panic!("syntax");
+            }
+            (&mut cmd).argv[argc] = (&self.buf[q..eq]).as_ptr();
+            (&mut cmd).eargv[argc] = eq;
+            argc += 1;
+            if argc >= MAXARGS {
+                panic!("too many args");
+            }
+            ret = self.parseredirs(ret);
+        }
+        (&mut cmd).argv[argc] = 0 as *const u8;
+        (&mut cmd).eargv[argc] = 0;
+        return ret;
+    }
+
+    fn parseblock(&mut self) -> &mut dyn Cmd {
+        if !self.peek(&[b'(']) {
+            panic!("parseblock");
+        }
+        self.gettoken(None, None);
+        let mut cmd = self.parseline();
+        if !self.peek(&[b')']) {
+            panic!("syntax - missing )");
+        }
+        self.gettoken(None, None);
+        cmd = self.parseredirs(cmd);
+        return cmd;
+    }
+
+    fn parseredirs<'a>(&mut self, cmd: &'a mut dyn Cmd) -> &mut dyn Cmd {
+        let mut tok = 0;
+        let mut cmd = cmd;
+        while self.peek(&[b'<', b'>']) {
+            let mut q = 0;
+            let mut eq = 0;
+            tok = self.gettoken(None, None);
+            if self.gettoken(Some(&mut q), Some(&mut eq)) != b'a' {
+                panic!("missing file for redirection");
+            }
+            let file = &mut self.buf[q..eq];
+            cmd = match tok {
+                b'<' => &mut RedirCmd::new(cmd, file, eq, O_RDONLY as i32, 0),
+                b'>' => &mut RedirCmd::new(cmd, file, eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1),
+                b'+' => &mut RedirCmd::new(cmd, file, eq, (O_WRONLY|O_CREATE) as i32, 1),
+                _ => cmd
+            }
+        }
+        return cmd;
+    }
+
+    const whitespace: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
+    const symbols: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
+    fn peek(&mut self, toks: &[u8]) -> bool {
+        let s = &self.buf;
+        while self.idx < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+            self.idx += 1;
+        }
+        return self.get_cur() != 0 && strchr(toks, self.get_cur()) != 0;
+    }
+    fn gettoken(&mut self, q: Option<&mut usize>, mut eq: Option<&mut usize>) -> u8 {
+        while self.idx < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+            self.idx += 1;
+        }
+        if let Some(q) = q {
+            *q = self.idx;
+        }
+        let mut ret = self.get_cur();
+        match self.get_cur() {
+            b'\0' => (),
+            b'|' | b'(' | b')' | b';' | b'&' | b'<' => self.idx += 1,
+            b'>' => {
+                self.idx += 1;
+                if self.get_cur() == b'>' {
+                    ret = b'+';
+                    self.idx += 1;
+                }
+            }
+            _ => {
+                ret = b'a';
+                while self.idx < self.end
+                    && strchr(&Self::whitespace, self.get_cur()) != 0
+                    && !strchr(&Self::symbols, self.get_cur()) != 0 {
+
+                    self.idx += 1;
+                }
+            }
+        }
+
+        if let Some(mut eq) = eq {
+            *eq = self.idx;
+        }
+
+        while self.idx < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+            self.idx += 1;
+        }
+        return ret;
+    }
+
 }
 
 #[start]
@@ -275,7 +445,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
             continue;
         }
         if fork1() == 0 {
-            parsecmd(cmdline).run();
+            cmdline.parsecmd().run();
         }
         unsafe { wait(0 as *const u8); }
     }
@@ -286,7 +456,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
 fn getcmd() -> Option<Cmdline> {
     unsafe { write(2, "$ \0".as_bytes().as_ptr(), 2); }
     let mut cmdline = Cmdline::new();
-    gets(&mut cmdline.buf as *mut u8, cmdline.buf.len());
+    cmdline.gets();
     if cmdline.buf[0] == 0 { // EOF
         return None;
     }
@@ -300,155 +470,4 @@ fn fork1() -> i32 {
         panic!("fork");
     }
     return pid;
-}
-
-fn parsecmd<'a>(mut cmdline: Cmdline) -> &'a dyn Cmd {
-    cmdline.end = strlen(&cmdline.buf as *const u8);
-    let cmd = parseline(&mut cmdline);
-    peek(&mut cmdline, "".as_bytes());
-    if cmdline.idx != cmdline.end {
-        fprintf!(2, "leftovers: {:?}\n", cmdline.buf);
-        panic!("syntax");
-    }
-    cmd.nulterminate();
-    return cmd;
-}
-
-fn parseline(cmdline: &mut Cmdline) -> &mut dyn Cmd {
-    let mut cmd = parsepipe(cmdline);
-    while peek(cmdline,&[b'&']) {
-        gettoken(cmdline, None, None);
-        cmd = &mut BackCmd::new(cmd);
-    }
-    if peek(cmdline, &[b';']) {
-        gettoken(cmdline, None, None);
-        cmd = &mut ListCmd::new(cmd, parseline(cmdline));
-    }
-    return cmd;
-}
-
-fn parsepipe(cmdline: &mut Cmdline) -> &mut dyn Cmd {
-    let mut cmd = parseexec(cmdline);
-    if peek(cmdline, &[b'|']) {
-        gettoken(cmdline, None, None);
-        cmd = &mut PipeCmd::new(cmd, parsepipe(cmdline));
-    }
-    return cmd;
-}
-
-fn parseexec(cmdline: &mut Cmdline) -> &mut dyn Cmd {
-    if peek(cmdline, &[b'(']) {
-        return parseblock(cmdline);
-    }
-    
-    let mut cmd = ExecCmd::new();
-    let mut ret: &mut dyn Cmd = &mut cmd;
-    
-    let mut argc = 0;
-    let mut tok = 0;
-    ret = parseredirs(ret, cmdline);
-    while !peek(cmdline, &[b'|', b')', b'&', b';']) {
-        let mut q = 0;
-        let mut eq = 0;
-        tok = gettoken(cmdline, Some(&mut q), Some(&mut eq));
-        if tok == 0 {
-            break;
-        } else if tok != b'a' {
-            panic!("syntax");
-        }
-        (&mut cmd).argv[argc] = (&cmdline.buf[q..eq]).as_ptr();
-        (&mut cmd).eargv[argc] = eq;
-        argc += 1;
-        if argc >= MAXARGS {
-            panic!("too many args");
-        }
-        ret = parseredirs(ret, cmdline);
-    }
-    (&mut cmd).argv[argc] = 0 as *const u8;
-    (&mut cmd).eargv[argc] = 0;
-    return ret;
-}
-
-fn parseblock(cmdline: &mut Cmdline) -> &mut dyn Cmd {
-    if !peek(cmdline, &[b'(']) {
-        panic!("parseblock");
-    }
-    gettoken(cmdline, None, None);
-    let mut cmd = parseline(cmdline);
-    if !peek(cmdline, &[b')']) {
-        panic!("syntax - missing )");
-    }
-    gettoken(cmdline, None, None);
-    cmd = parseredirs(cmd, cmdline);
-    return cmd;
-}
-
-fn parseredirs<'a>(cmd: &'a mut dyn Cmd, cmdline: &'a mut Cmdline) -> &mut dyn Cmd {
-    let mut tok = 0;
-    let mut cmd = cmd;
-    while peek(cmdline, &[b'<', b'>']) {
-        let mut q = 0;
-        let mut eq = 0;
-        tok = gettoken(cmdline, None, None);
-        if gettoken(cmdline, Some(&mut q), Some(&mut eq)) != b'a' {
-            panic!("missing file for redirection");
-        }
-        let file = &mut cmdline.buf[q..eq];
-        cmd = match tok { 
-            b'<' => &mut RedirCmd::new(cmd, file, eq, O_RDONLY as i32, 0),
-            b'>' => &mut RedirCmd::new(cmd, file, eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1),
-            b'+' => &mut RedirCmd::new(cmd, file, eq, (O_WRONLY|O_CREATE) as i32, 1),
-            _ => cmd 
-        }
-    }
-    return cmd;
-}
-
-fn gettoken(cmdline: &mut Cmdline, q: Option<&mut usize>, mut eq: Option<&mut usize>) -> u8 {
-    while cmdline.idx < cmdline.end && strchr(&whitespace, cmdline.get_cur()) != 0 {
-        cmdline.idx += 1;
-    }
-    if let Some(q) = q {
-        *q = cmdline.idx;
-    }
-    let mut ret = cmdline.get_cur();
-    match cmdline.get_cur() { 
-        b'\0' => (),
-        b'|' | b'(' | b')' | b';' | b'&' | b'<' => cmdline.idx += 1,
-        b'>' => {
-            cmdline.idx += 1;
-            if cmdline.get_cur() == b'>' {
-                ret = b'+';
-                cmdline.idx += 1;
-            }
-        }
-        _ => {
-            ret = b'a';
-            while cmdline.idx < cmdline.end 
-                && strchr(&whitespace, cmdline.get_cur()) != 0 
-                && !strchr(&symbols, cmdline.get_cur()) != 0 {
-                
-                cmdline.idx += 1;
-            }
-        } 
-    }
-    
-    if let Some(mut eq) = eq { 
-        *eq = cmdline.idx;
-    }
-    
-    while cmdline.idx < cmdline.end && strchr(&whitespace, cmdline.get_cur()) != 0 {
-        cmdline.idx += 1;
-    }
-    return ret;
-}
-
-const whitespace: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
-const symbols: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
-fn peek(cmdline: &mut Cmdline, toks: &[u8]) -> bool {
-    let s = &cmdline.buf;
-    while cmdline.idx < cmdline.end && strchr(&whitespace, cmdline.get_cur()) != 0 {
-        cmdline.idx += 1;
-    }
-    return cmdline.get_cur() != 0 && strchr(toks, cmdline.get_cur()) != 0;
 }
