@@ -13,7 +13,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     unsafe {
         // let mut console_slice: [u8; MAXPATH] = [b'\0'; MAXPATH];
         // console_slice.copy_from_slice("console".as_bytes());
-        let mut console_slice = "console\0".as_bytes();
+        let console_slice = "console\0".as_bytes();
         if open(console_slice.as_ptr(), O_RDWR) < 0 {
             mknod(console_slice.as_ptr(), CONSOLE as u16, 0);
             open(console_slice.as_ptr(), O_RDWR);
@@ -21,8 +21,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
         dup(0);  // stdout fd=1
         dup(0);  // stderr fd=2
 
-        let mut pid = 0;
-        let mut wpid = 0;
+        let mut pid;
+        let mut wpid;
         loop {
             printf!("init: starting sh\n");
             pid = fork();
