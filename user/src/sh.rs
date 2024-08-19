@@ -1,17 +1,19 @@
 #![no_std]
 #![feature(start)]
 
-extern crate kernel;
 extern crate alloc;
+extern crate kernel;
 
+use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
-use core::ops::DerefMut;
 use core::sync::atomic::{AtomicUsize, Ordering};
+
 use kernel::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use kernel::string::strlen;
 use ulib::{fprintf, strchr};
 use ulib::stubs::{chdir, close, dup, exec, exit, fork, open, pipe, read, wait, write};
+
 use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
 
 // Parsed command representation
@@ -64,17 +66,17 @@ impl Cmd for ExecCmd {
     }
 }
 
-struct RedirCmd<'a> {
+struct RedirCmd {
     cmd_type: CmdType,
-    cmd: Rc<RefCell<&'a mut dyn Cmd>>,
-    file: &'a mut [u8],
+    cmd: Rc<RefCell<Box<dyn Cmd>>>,
+    file: [u8; CMD_MAX_LEN],
     efile: usize,
     mode: i32,
     fd: i32
 }
 
-impl<'a> RedirCmd<'a> {
-    fn new(subcmd: Rc<RefCell<&'a mut dyn Cmd>>, file: &'a mut [u8], efile: usize, mode: i32, fd: i32) -> Self {
+impl RedirCmd {
+    fn new(subcmd: Rc<RefCell<Box<dyn Cmd>>>, file: [u8; CMD_MAX_LEN], efile: usize, mode: i32, fd: i32) -> Self {
         Self {
             cmd_type: REDIR,
             cmd: subcmd,
@@ -86,7 +88,7 @@ impl<'a> RedirCmd<'a> {
     }
 }
 
-impl<'a> Cmd for RedirCmd<'a> {
+impl Cmd for RedirCmd {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -107,14 +109,14 @@ impl<'a> Cmd for RedirCmd<'a> {
     }
 }
 
-struct PipeCmd<'a> {
+struct PipeCmd {
     cmd_type: CmdType,
-    left: Rc<RefCell<&'a mut dyn Cmd>>,
-    right: Rc<RefCell<&'a mut dyn Cmd>>,
+    left: Rc<RefCell<Box<dyn Cmd>>>,
+    right: Rc<RefCell<Box<dyn Cmd>>>,
 }
 
-impl<'a> PipeCmd<'a> {
-    fn new(leftcmd: Rc<RefCell<&'a mut dyn Cmd>>, rightcmd: Rc<RefCell<&'a mut dyn Cmd>>) -> Self {
+impl PipeCmd {
+    fn new(leftcmd: Rc<RefCell<Box<dyn Cmd>>>, rightcmd: Rc<RefCell<Box<dyn Cmd>>>) -> Self {
         Self {
             cmd_type: PIPE,
             left: leftcmd,
@@ -123,7 +125,7 @@ impl<'a> PipeCmd<'a> {
     }
 }
 
-impl<'a> Cmd for PipeCmd<'a> {
+impl Cmd for PipeCmd {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -165,14 +167,14 @@ impl<'a> Cmd for PipeCmd<'a> {
     }
 }
 
-struct ListCmd<'a> {
+struct ListCmd {
     cmd_type: CmdType,
-    left: Rc<RefCell<&'a mut dyn Cmd>>,
-    right: Rc<RefCell<&'a mut dyn Cmd>>,
+    left: Rc<RefCell<Box<dyn Cmd>>>,
+    right: Rc<RefCell<Box<dyn Cmd>>>,
 }
 
-impl<'a> ListCmd<'a> {
-    fn new(leftcmd: Rc<RefCell<&'a mut dyn Cmd>>, rightcmd: Rc<RefCell<&'a mut dyn Cmd>>) -> Self {
+impl ListCmd {
+    fn new(leftcmd: Rc<RefCell<Box<dyn Cmd>>>, rightcmd: Rc<RefCell<Box<dyn Cmd>>>) -> Self {
         Self {
             cmd_type: LIST,
             left: leftcmd,
@@ -181,7 +183,7 @@ impl<'a> ListCmd<'a> {
     }
 }
 
-impl<'a> Cmd for ListCmd<'a> {
+impl Cmd for ListCmd {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -200,13 +202,13 @@ impl<'a> Cmd for ListCmd<'a> {
     }
 }
 
-struct BackCmd<'a> {
+struct BackCmd {
     cmd_type: CmdType,
-    cmd: Rc<RefCell<&'a mut dyn Cmd>>,
+    cmd: Rc<RefCell<Box<dyn Cmd>>>,
 }
 
-impl<'a> BackCmd<'a> {
-    fn new(subcmd: Rc<RefCell<&'a mut dyn Cmd>>) -> Self {
+impl BackCmd {
+    fn new(subcmd: Rc<RefCell<Box<dyn Cmd>>>) -> Self {
         Self {
             cmd_type: BACK,
             cmd: subcmd
@@ -214,7 +216,7 @@ impl<'a> BackCmd<'a> {
     }
 }
 
-impl<'a> Cmd for BackCmd<'a> {
+impl Cmd for BackCmd {
     fn get_type(&self) -> CmdType {
         self.cmd_type
     }
@@ -230,8 +232,9 @@ impl<'a> Cmd for BackCmd<'a> {
     }
 }
 
+const CMD_MAX_LEN: usize = 100;
 struct Cmdline {
-    buf: [u8; 100],
+    buf: [u8; CMD_MAX_LEN],
     idx: AtomicUsize,
     end: usize
 }
@@ -268,7 +271,7 @@ impl Cmdline {
         self.buf[i] = b'\0';
     }
     
-    fn parsecmd(&mut self) -> Rc<RefCell<&mut dyn Cmd>> {
+    fn parsecmd(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {
         self.end = strlen(&self.buf as *const u8);
         let cmd = self.parseline();
         self.peek("".as_bytes());
@@ -280,29 +283,29 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parseline(&self) -> Rc<RefCell<&mut dyn Cmd>> {
+    fn parseline(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
         let mut cmd = self.parsepipe();
         while self.peek(&[b'&']) {
             self.gettoken(None, None);
-            cmd = Rc::new(RefCell::new(&mut BackCmd::new(cmd)));
+            cmd = Rc::new(RefCell::new(Box::new(BackCmd::new(cmd.clone()))));
         }
         if self.peek(&[b';']) {
             self.gettoken(None, None);
-            cmd = Rc::new(RefCell::new(&mut ListCmd::new(cmd, self.parseline())));
+            cmd = Rc::new(RefCell::new(Box::new(ListCmd::new(cmd.clone(), self.parseline()))));
         }
         return cmd;
     }
 
-    fn parsepipe(&self) -> Rc<RefCell<&mut dyn Cmd>> {
+    fn parsepipe(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
         let mut cmd = self.parseexec();
         if self.peek(&[b'|']) {
             self.gettoken(None, None);
-            cmd = Rc::new(RefCell::new(&mut PipeCmd::new(cmd, self.parsepipe())));
+            cmd = Rc::new(RefCell::new(Box::new(PipeCmd::new(cmd.clone(), self.parsepipe().clone()))));
         }
         return cmd;
     }
 
-    fn parseexec(&self) -> Rc<RefCell<&mut dyn Cmd>> {
+    fn parseexec(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
         if self.peek(&[b'(']) {
             return self.parseblock();
         }
@@ -311,7 +314,7 @@ impl Cmdline {
 
         let mut argc = 0;
         let mut tok;
-        let mut ret = self.parseredirs(Rc::new(RefCell::new(&mut cmd)));
+        let mut ret = self.parseredirs(Rc::new(RefCell::new(Box::new(cmd))));
         while !self.peek(&[b'|', b')', b'&', b';']) {
             let mut q = 0;
             let mut eq = 0;
@@ -335,21 +338,20 @@ impl Cmdline {
         return ret;
     }
 
-    fn parseblock(&self) -> Rc<RefCell<&mut dyn Cmd>> {
+    fn parseblock(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
         if !self.peek(&[b'(']) {
             panic!("parseblock");
         }
         self.gettoken(None, None);
-        let mut cmd = self.parseline();
+        let cmd = self.parseline();
         if !self.peek(&[b')']) {
             panic!("syntax - missing )");
         }
         self.gettoken(None, None);
-        cmd = self.parseredirs(cmd);
-        return cmd;
+        return self.parseredirs(cmd);
     }
 
-    fn parseredirs<'a>(&self, cmd: Rc<RefCell<&'a mut dyn Cmd>>) -> Rc<RefCell<&mut dyn Cmd>> {
+    fn parseredirs(&self, cmd: Rc<RefCell<Box<dyn Cmd>>>) -> Rc<RefCell<Box<dyn Cmd>>> {
         let mut tok;
         let mut cmd = cmd;
         while self.peek(&[b'<', b'>']) {
@@ -360,10 +362,12 @@ impl Cmdline {
                 panic!("missing file for redirection");
             }
             let file = &self.buf[q..eq];
+            let mut new_file = [0; CMD_MAX_LEN];
+            new_file[..file.len()].copy_from_slice(file);
             cmd = match tok {
-                b'<' => Rc::new(RefCell::new(&mut RedirCmd::new(cmd, &mut file.clone(), eq, O_RDONLY as i32, 0))),
-                b'>' => Rc::new(RefCell::new(&mut RedirCmd::new(cmd, &mut file.clone(), eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1))),
-                b'+' => Rc::new(RefCell::new(&mut RedirCmd::new(cmd, &mut file.clone(), eq, (O_WRONLY|O_CREATE) as i32, 1))),
+                b'<' => Rc::new(RefCell::new(Box::new(RedirCmd::new(cmd, new_file, eq, O_RDONLY as i32, 0)))),
+                b'>' => Rc::new(RefCell::new(Box::new(RedirCmd::new(cmd, new_file, eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1)))),
+                b'+' => Rc::new(RefCell::new(Box::new(RedirCmd::new(cmd, new_file, eq, (O_WRONLY|O_CREATE) as i32, 1)))),
                 _ => cmd
             }
         }
