@@ -31,16 +31,16 @@ trait Cmd {
 
 struct ExecCmd {
     cmd_type: CmdType,
-    argv: [*const u8; MAXARGS],
-    eargv: [usize; MAXARGS],
+    argv: Rc<RefCell<[*const u8; MAXARGS]>>,
+    eargv: Rc<RefCell<[usize; MAXARGS]>>,
 }
 
 impl ExecCmd {
     fn new() -> Self {
         Self {
             cmd_type: EXEC,
-            argv: [0 as *const u8; MAXARGS],
-            eargv: [0; MAXARGS],
+            argv: Rc::new(RefCell::new([0 as *const u8; MAXARGS])),
+            eargv: Rc::new(RefCell::new([0; MAXARGS])),
         }
     }
 }
@@ -51,17 +51,17 @@ impl Cmd for ExecCmd {
     }
 
     fn run(&self) {
-        if self.argv[0] == 0 as *const u8 { 
+        if self.argv.borrow_mut()[0] == 0 as *const u8 {
             unsafe { exit(1); }
         }
         
-        unsafe { exec(self.argv[0], self.argv.as_ptr()); }
-        fprintf!(2, "exec {} failed\n", self.argv[0].as_ref().unwrap());
+        unsafe { exec(self.argv.borrow_mut()[0], self.argv.borrow_mut().as_ptr()); }
+        fprintf!(2, "exec {} failed\n", self.argv.borrow_mut()[0].as_ref().unwrap());
     }
 
     fn nulterminate(&mut self) {
         for i in 0..MAXARGS {
-            self.argv[self.eargv[i]] = 0 as *const u8;
+            self.argv.borrow_mut()[self.eargv.borrow_mut()[i]] = 0 as *const u8;
         }
     }
 }
@@ -310,11 +310,14 @@ impl Cmdline {
             return self.parseblock();
         }
 
-        let mut cmd = ExecCmd::new();
+        let exec_md = ExecCmd::new();
+        let argv = exec_md.argv.clone();
+        let eargv = exec_md.eargv.clone();
+        let cmd = Rc::new(RefCell::new(Box::new(exec_md) as Box<dyn Cmd>));
 
         let mut argc = 0;
         let mut tok;
-        let mut ret = self.parseredirs(Rc::new(RefCell::new(Box::new(cmd))));
+        let mut ret = self.parseredirs(cmd);
         while !self.peek(&[b'|', b')', b'&', b';']) {
             let mut q = 0;
             let mut eq = 0;
@@ -325,16 +328,17 @@ impl Cmdline {
                 panic!("syntax");
             }
 
-            cmd.argv[argc] = (&self.buf[q..eq]).as_ptr();
-            cmd.eargv[argc] = eq;
+            argv.borrow_mut()[argc] = (&self.buf[q..eq]).as_ptr();
+            eargv.borrow_mut()[argc] = eq;
             argc += 1;
             if argc >= MAXARGS {
                 panic!("too many args");
             }
             ret = self.parseredirs(ret);
         }
-        cmd.argv[argc] = 0 as *const u8;
-        cmd.eargv[argc] = 0;
+
+        argv.borrow_mut()[argc] = 0 as *const u8;
+        eargv.borrow_mut()[argc] = 0;
         return ret;
     }
 
