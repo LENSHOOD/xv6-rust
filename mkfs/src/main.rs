@@ -48,7 +48,6 @@ struct Args {
     output_name: String,
 
     /// Files that you want to be contained in the img
-    #[arg(short, long)]
     files: Option<Vec<String>>,
 }
 fn main() -> Result<()> {
