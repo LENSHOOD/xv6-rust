@@ -162,6 +162,24 @@ pub(crate) fn sys_write() -> u64 {
     return filewrite(file, p, n) as u64;
 }
 
+pub(crate) fn sys_close() -> u64 {
+    let fd_file = argfd(0);
+    if fd_file.is_none() {
+        return -1i64 as u64;
+    }
+
+    let f = fd_file.unwrap().1;
+    let fd = fdalloc(f);
+    if fd.is_none() {
+        return -1i64 as u64;
+    }
+
+    myproc().ofile[fd.unwrap()] = None;
+    fileclose(unsafe { f.as_mut().unwrap() });
+    return 0;
+}
+
+
 pub(crate) fn sys_mknod() -> u64 {
     begin_op();
     let major = argint(1) as i16;

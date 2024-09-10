@@ -1,7 +1,7 @@
 use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
-use crate::syscall::sysfile::sys_open;
+use crate::syscall::sysfile::{sys_close, sys_open};
 use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
 use crate::syscall::sysproc::{sys_exit, sys_fork, sys_wait};
 use crate::syscall::{
@@ -104,7 +104,7 @@ const SYSCALL: [Option<fn() -> u64>; 22] = {
     arr[SYS_unlink] = None;
     arr[SYS_link] = None;
     arr[SYS_mkdir] = None;
-    arr[SYS_close] = None;
+    arr[SYS_close] = Some(sys_close);
     arr
 };
 
