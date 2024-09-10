@@ -90,11 +90,13 @@ fn main() -> Result<()> {
     };
     de.inum = (rootino as u16).to_le();
     let v = ".".as_bytes();
+    de.name = [0; DIRSIZ];
     de.name[..v.len()].copy_from_slice(v);
     iappend(&mut img_file, rootino, &de, size_of::<Dirent>() as i32)?;
 
     de.inum = (rootino as u16).to_le();
     let v = "..".as_bytes();
+    de.name = [0; DIRSIZ];
     de.name[..v.len()].copy_from_slice(v);
     iappend(&mut img_file, rootino, &de, size_of::<Dirent>() as i32)?;
 
@@ -124,6 +126,7 @@ fn main() -> Result<()> {
 
                 de.inum = (inum as u16).to_le();
                 let v = short_name.as_bytes();
+                de.name = [0; DIRSIZ];
                 de.name[..v.len()].copy_from_slice(v);
                 iappend(&mut img_file, rootino, &de, size_of::<Dirent>() as i32)?;
 

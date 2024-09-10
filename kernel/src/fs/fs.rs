@@ -660,6 +660,9 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &[u8], poff: &mut u32) -> Opti
 
     let sz = mem::size_of::<Dirent>();
     for off in (0..dp.size).step_by(sz) {
+        // clear name buffer
+        de.name = [0; DIRSIZ];
+        
         if dp.readi(false, &mut de as *mut Dirent, off, sz) != sz {
             panic!("dirlookup read");
         }
