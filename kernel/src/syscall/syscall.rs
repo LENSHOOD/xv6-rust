@@ -1,7 +1,7 @@
 use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
-use crate::syscall::sysfile::{sys_close, sys_open};
+use crate::syscall::sysfile::{sys_close, sys_open, sys_read};
 use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
 use crate::syscall::sysproc::{sys_exit, sys_fork, sys_wait};
 use crate::syscall::{
@@ -87,7 +87,7 @@ const SYSCALL: [Option<fn() -> u64>; 22] = {
     arr[SYS_fork] = Some(sys_fork);
     arr[SYS_exit] = Some(sys_exit);
     arr[SYS_wait] = Some(sys_wait);
-    arr[SYS_pipe] = None;
+    arr[SYS_pipe] = Some(sys_read);
     arr[SYS_read] = None;
     arr[SYS_kill] = None;
     arr[SYS_exec] = Some(sys_exec);

@@ -206,6 +206,13 @@ impl<'a> Proc<'a> {
         }
     }
 
+    pub(crate) fn killed(self: &mut Self) -> u8 {
+        self.lock.acquire();
+        let k = self.killed;
+        self.lock.release();
+        return k;
+    }
+    
     pub(crate) fn setkilled(self: &mut Self) {
         self.lock.acquire();
         self.killed = 1;
@@ -461,13 +468,6 @@ pub fn proc_freepagetable(pagetable: &mut PageTable, sz: usize) {
     uvmfree(pagetable, sz);
 }
 
-pub(crate) fn killed(p: &mut Proc) -> u8 {
-    p.lock.acquire();
-    let k = p.killed;
-    p.lock.release();
-    return k;
-}
-
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
@@ -712,7 +712,7 @@ pub(crate) fn wait(addr: usize) -> i32 {
         }
 
         // No point waiting if we don't have any children.
-        if !havekids || killed(p) != 0 {
+        if !havekids || p.killed() != 0 {
             unsafe {
                 WAIT_LOCK.release();
             }

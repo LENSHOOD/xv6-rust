@@ -1,6 +1,6 @@
 use crate::exec::exec;
 use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
-use crate::file::file::{filealloc, fileclose, filedup, filewrite};
+use crate::file::file::{filealloc, fileclose, filedup, fileread, filewrite};
 use crate::file::FDType::{FD_DEVICE, FD_INODE};
 use crate::file::{File, INode};
 use crate::fs::fs::{dirlink, dirlookup, ialloc, namei, nameiparent};
@@ -107,7 +107,7 @@ pub(crate) fn sys_open() -> u64 {
     }
 
     let ip = ip.unwrap();
-    if ip.file_type == T_DEVICE && (ip.major < 0 || ip.major as usize >= NDEV) {
+    if ip.file_type == T_DEVICE && (ip.major < 0 || ip.major >= NDEV) {
         ip.iunlockput();
         end_op();
         return -1i64 as u64;
@@ -150,6 +150,19 @@ pub(crate) fn sys_open() -> u64 {
     return fd.unwrap() as u64;
 }
 
+pub(crate) fn sys_read() -> u64 {
+    let p = argaddr(1);
+    let n = argint(2);
+
+    let fd_file = argfd(0);
+    if fd_file.is_none() {
+        return -1i64 as u64;
+    }
+
+    let file = unsafe { fd_file.unwrap().1.as_mut().unwrap() };
+    return fileread(file, p, n) as u64;
+}
+
 pub(crate) fn sys_write() -> u64 {
     let p = argaddr(1);
     let n = argint(2);
@@ -178,7 +191,6 @@ pub(crate) fn sys_close() -> u64 {
     fileclose(unsafe { f.as_mut().unwrap() });
     return 0;
 }
-
 
 pub(crate) fn sys_mknod() -> u64 {
     begin_op();

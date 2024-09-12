@@ -1,7 +1,7 @@
 use crate::memlayout::{TRAMPOLINE, UART0_IRQ, VIRTIO0_IRQ};
 use crate::plic::{plic_claim, plic_complete};
 use crate::proc::Procstate::RUNNING;
-use crate::proc::{cpuid, exit, killed, myproc, wakeup, yield_curr_proc};
+use crate::proc::{cpuid, exit, myproc, wakeup, yield_curr_proc};
 use crate::riscv::{
     intr_get, intr_off, intr_on, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, w_sepc,
     w_sip, w_sstatus, w_stvec, PageTable, PGSIZE, SSTATUS_SPIE, SSTATUS_SPP,
@@ -57,7 +57,7 @@ fn usertrap() {
     if r_scause() == 8 {
         // system call
 
-        if killed(p) != 0 {
+        if p.killed() != 0 {
             exit(-1);
         }
 
@@ -85,7 +85,7 @@ fn usertrap() {
         }
     }
 
-    if killed(p) != 0 {
+    if p.killed() != 0 {
         exit(-1);
     }
 

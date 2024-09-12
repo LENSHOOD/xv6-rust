@@ -1,7 +1,7 @@
 use crate::kalloc::KMEM;
-use crate::proc::{killed, myproc, sleep, wakeup};
+use crate::proc::{myproc, sleep, wakeup};
 use crate::spinlock::Spinlock;
-use crate::vm::copyin;
+use crate::vm::{copyin, copyout};
 
 const PIPESIZE: usize = 512;
 pub struct Pipe {
@@ -40,7 +40,7 @@ impl Pipe {
 
         let mut i = 0;
         while i < n {
-            if !self.readopen || killed(pr) != 0 {
+            if !self.readopen || pr.killed() != 0 {
                 self.lock.release();
                 return -1;
             }
@@ -61,6 +61,39 @@ impl Pipe {
             }
         }
         wakeup(&self.nread);
+        self.lock.release();
+        return i;
+    }
+
+    pub(crate) fn read(self: &mut Self, addr: usize, n: i32) -> i32 {
+        let pr = myproc();
+
+        self.lock.acquire();
+        let mut i = 0;
+        while self.nread == self.nwrite && self.writeopen { //DOC: pipe-empty
+            if pr.killed() != 0 {
+                self.lock.release();
+                return -1;
+            }
+            sleep(&self.nread, &mut self.lock); //DOC: piperead-sleep
+        }
+
+        let mut ret = 0;
+        for i in 0..n as usize {
+            if self.nread == self.nwrite {
+                break;
+            }
+            self.nread += 1;
+            let ch = self.data[self.nread as usize % PIPESIZE];
+            let pgtbl = unsafe { pr.pagetable.unwrap().as_mut().unwrap() };
+            if copyout(pgtbl, addr + i, &ch, 1) == -1 {
+                break;
+            }
+            
+            ret = i;
+        }
+       
+        wakeup(&self.nwrite);  //DOC: piperead-wakeup
         self.lock.release();
         return i;
     }

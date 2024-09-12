@@ -20,7 +20,7 @@ pub struct File {
     ref_cnt: i32, // reference count
     pub(crate) readable: bool,
     pub(crate) writable: bool,
-    pipe: Option<*mut Pipe>,           // FD_PIPE
+    pub(crate) pipe: Option<*mut Pipe>,           // FD_PIPE
     pub(crate) ip: Option<*mut INode>, // FD_INODE and FD_DEVICE
     pub(crate) off: u32,               // FD_INODE
     pub(crate) major: i16,             // FD_DEVICE
@@ -97,7 +97,7 @@ impl INode {
     }
 }
 
-pub static mut DEVSW: [Option<*mut dyn Devsw>; NDEV] = [None; NDEV];
+pub static mut DEVSW: [Option<*mut dyn Devsw>; NDEV as usize] = [None; NDEV as usize];
 
 // map major device number to device functions.
 pub trait Devsw {

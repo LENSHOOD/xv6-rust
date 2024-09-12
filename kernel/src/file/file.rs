@@ -83,6 +83,44 @@ pub(crate) fn fileclose(f: &mut File) {
     }
 }
 
+// Read from file f.
+// addr is a user virtual address.
+pub(crate) fn fileread(f: &mut File, addr: usize, n: i32) -> i32 {
+    if !f.readable {
+        return -1
+    }
+
+    return match f.file_type {
+        FD_PIPE => {
+            let pipe = unsafe { f.pipe.unwrap().as_mut().unwrap() };
+            return pipe.read(addr, n);
+        }
+        FD_INODE => {
+            let ip = unsafe { f.ip.unwrap().as_mut().unwrap() };
+            ip.ilock();
+            let r = ip.readi(true, addr as *mut u8, f.off, n as usize) as u32;
+            if r > 0 {
+                f.off += r;
+            }
+            ip.iunlock();
+            r as i32
+        }
+        FD_DEVICE => {
+            if f.major < 0 || f.major >= NDEV || unsafe { DEVSW[f.major as usize].is_none() } {
+                return -1;
+            }
+            return unsafe { 
+                DEVSW[f.major as usize]
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .read(true, addr, n as usize) 
+            };
+        }
+        _ => panic!("fileread"),
+    }
+}
+
 // Write to file f.
 // addr is a user virtual address.
 pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
@@ -94,7 +132,7 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
         FD_PIPE => unsafe { f.pipe.unwrap().as_mut().unwrap().write(addr, n) },
         FD_DEVICE => {
             if f.major < 0
-                || f.major as usize >= NDEV
+                || f.major >= NDEV
                 || unsafe { DEVSW[f.major as usize].is_none() }
             {
                 return -1;

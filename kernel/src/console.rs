@@ -1,5 +1,5 @@
 use crate::file::{Devsw, CONSOLE, DEVSW};
-use crate::proc::{either_copyin, either_copyout, killed, myproc, procdump, sleep, wakeup};
+use crate::proc::{either_copyin, either_copyout, myproc, procdump, sleep, wakeup};
 use crate::spinlock::Spinlock;
 use crate::uart::UART_INSTANCE;
 use core::fmt::{Error, Write};
@@ -134,7 +134,7 @@ impl Devsw for Console {
             // wait until interrupt handler has put some
             // input into cons.buffer.
             while self.r == self.w {
-                if killed(myproc()) != 0 {
+                if myproc().killed() != 0 {
                     self.lock.release();
                     return -1;
                 }
