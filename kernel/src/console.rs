@@ -139,7 +139,7 @@ impl Devsw for Console {
                     self.lock.release();
                     return -1;
                 }
-                sleep(self, &mut self.lock);
+                sleep(&self.r, &mut self.lock);
             }
 
             self.r += 1;
