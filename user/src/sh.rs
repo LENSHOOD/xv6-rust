@@ -11,7 +11,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 
 use kernel::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use kernel::string::strlen;
-use ulib::{fprintf, strchr};
+use ulib::{fprintf, gets, strchr};
 use ulib::stubs::{chdir, close, dup, exec, exit, fork, open, pipe, read, wait, write};
 
 use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
@@ -275,22 +275,8 @@ impl Cmdline {
     }
 
     fn gets(&mut self) {
-        let mut c: u8 = 0;
-        let mut i = 0;
-        while i + 1 < self.buf.len() {
-            let cc = unsafe { read(0, &mut c as *mut u8, 1) };
-            if cc < 1 {
-                break;
-            }
-
-            self.buf[i] = c;
-            i += 1;
-            if c == b'\n' || c == b'\r' {
-                break;
-            }
-        }
-
-        self.buf[i] = b'\0';
+        let len = self.buf.len();
+        gets(&mut self.buf, len);
     }
 
     fn parsecmd(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {

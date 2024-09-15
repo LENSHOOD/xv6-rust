@@ -57,7 +57,7 @@ pub fn printf(args: Arguments<'_>) {
     fprintf(1, args);
 }
 
-pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
+pub fn gets(buf: &mut [u8], max: usize) {
     let mut c: u8 = 0;
     let mut i = 0;
     while i + 1 < max {
@@ -67,7 +67,7 @@ pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
         }
 
         unsafe {
-            buf.add(i).write(c);
+            buf[i] = c;
         }
         i += 1;
         if c == b'\n' || c == b'\r' {
@@ -76,9 +76,8 @@ pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
     }
 
     unsafe {
-        buf.add(i).write(b'\0');
+        buf[i] = b'\0';
     }
-    return buf;
 }
 
 pub fn strchr(s: &[u8], c: u8) -> usize {
