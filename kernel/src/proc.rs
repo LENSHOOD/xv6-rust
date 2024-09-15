@@ -1,5 +1,9 @@
-use crate::file::file::fileclose;
+use core::{mem, ptr};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+use crate::{KSTACK, printf};
 use crate::file::{File, INode};
+use crate::file::file::fileclose;
 use crate::fs::fs;
 use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
@@ -7,14 +11,11 @@ use crate::log::{begin_op, end_op};
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED, ZOMBIE};
-use crate::riscv::{intr_get, intr_on, r_tp, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X};
+use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
 use crate::vm::{copyin, copyout, kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
-use crate::{printf, KSTACK};
-use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use core::{mem, ptr};
 
 // Saved registers for kernel context switches.
 #[repr(C)]
@@ -212,7 +213,7 @@ impl<'a> Proc<'a> {
         self.lock.release();
         return k;
     }
-    
+
     pub(crate) fn setkilled(self: &mut Self) {
         self.lock.acquire();
         self.killed = 1;

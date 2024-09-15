@@ -1,8 +1,9 @@
+use core::arch::asm;
+
+use crate::{CLINT_MTIMECMP, kmain};
 use crate::memlayout::CLINT_MTIME;
 use crate::param::*;
 use crate::riscv::*;
-use crate::{kmain, CLINT_MTIMECMP};
-use core::arch::asm;
 
 static TIMER_SCRATCH: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
 
@@ -37,7 +38,7 @@ extern "C" fn start() {
     w_pmpcfg0(0xf);
 
     // ask for clock interrupts.
-    timerinit();
+    // timerinit();
 
     // keep each CPU's hartid in its tp register, for cpuid().
     let id = r_mhartid();

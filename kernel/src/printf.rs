@@ -1,6 +1,7 @@
+use core::fmt::{Arguments, Write};
+
 use crate::console::CONSOLE_INSTANCE;
 use crate::spinlock::Spinlock;
-use core::fmt::{Arguments, Write};
 
 pub static mut PRINTER: Printer = Printer {
     lock: Spinlock::init_lock("pr"),

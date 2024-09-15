@@ -1,16 +1,16 @@
+use crate::{MAKE_SATP, printf};
 use crate::memlayout::{TRAMPOLINE, UART0_IRQ, VIRTIO0_IRQ};
 use crate::plic::{plic_claim, plic_complete};
-use crate::proc::Procstate::RUNNING;
 use crate::proc::{cpuid, exit, myproc, wakeup, yield_curr_proc};
+use crate::proc::Procstate::RUNNING;
 use crate::riscv::{
-    intr_get, intr_off, intr_on, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval, r_tp, w_sepc,
-    w_sip, w_sstatus, w_stvec, PageTable, PGSIZE, SSTATUS_SPIE, SSTATUS_SPP,
+    intr_get, intr_off, intr_on, PageTable, PGSIZE, r_satp, r_scause, r_sepc, r_sip, r_sstatus, r_stval,
+    r_tp, SSTATUS_SPIE, SSTATUS_SPP, w_sepc, w_sip, w_sstatus, w_stvec,
 };
 use crate::spinlock::Spinlock;
 use crate::syscall::syscall::syscall;
 use crate::uart::UART_INSTANCE;
 use crate::virtio::virtio_disk::virtio_disk_intr;
-use crate::{printf, MAKE_SATP};
 
 static mut TICKS_LOCK: Option<Spinlock> = None;
 static mut TICKS: u32 = 0;

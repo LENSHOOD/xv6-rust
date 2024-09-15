@@ -1,11 +1,12 @@
+use core::mem;
+
 use crate::bio::{bpin, bread, brelse, bunpin, bwrite};
 use crate::buf::Buf;
-use crate::fs::{SuperBlock, BSIZE};
+use crate::fs::{BSIZE, SuperBlock};
 use crate::param::{LOGSIZE, MAXOPBLOCKS};
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::Spinlock;
 use crate::string::memmove;
-use core::mem;
 
 // Simple logging that allows concurrent FS system calls.
 //

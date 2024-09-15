@@ -18,8 +18,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
             mknod(console_slice.as_ptr(), CONSOLE as u16, 0);
             open(console_slice.as_ptr(), O_RDWR);
         }
-        dup(0);  // stdout fd=1
-        dup(0);  // stderr fd=2
+        dup(0); // stdout fd=1
+        dup(0); // stderr fd=2
 
         let mut pid;
         let mut wpid;
@@ -31,12 +31,13 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
                 exit(1);
             }
             if pid == 0 {
-                let argv: *const *const u8 = (&["sh\0".as_bytes().as_ptr(), "".as_bytes().as_ptr()]).as_ptr();
+                let argv: *const *const u8 =
+                    (&["sh\0".as_bytes().as_ptr(), "".as_bytes().as_ptr()]).as_ptr();
                 exec("sh\0".as_bytes().as_ptr(), argv);
                 printf!("init: exec sh failed\n");
                 exit(1);
             }
-            
+
             loop {
                 // this call to wait() returns if the shell exits,
                 // or if a parentless process exits.

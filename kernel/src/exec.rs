@@ -1,14 +1,15 @@
-use crate::elf::{ElfHeader, ProgramHeader, ELF_MAGIC, ELF_PROG_LOAD};
+use core::mem;
+
+use crate::elf::{ELF_MAGIC, ELF_PROG_LOAD, ElfHeader, ProgramHeader};
 use crate::file::INode;
 use crate::fs::fs::namei;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXARG, MAXPATH};
+use crate::PGROUNDUP;
 use crate::proc::{myproc, proc_freepagetable, proc_pagetable};
 use crate::riscv::{PageTable, PGSIZE, PTE_W, PTE_X};
 use crate::string::strlen;
 use crate::vm::{copyout, uvmalloc, uvmclear, walkaddr};
-use crate::PGROUNDUP;
-use core::mem;
 
 fn flags2perm(flags: u32) -> usize {
     let mut perm = 0;
@@ -61,7 +62,7 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
         let tot = ip.readi(false, &mut ph, off, ph_sz);
         // prepare for next loop
         off += ph_sz as u32;
-        
+
         if tot != ph_sz {
             return goto_bad(Some(page_table), sz, Some(ip));
         }
@@ -119,7 +120,7 @@ pub fn exec(path: [u8; MAXPATH], argv: &[Option<*mut u8>; MAXARG]) -> i32 {
             break;
         }
         let curr_argv = argv[argc].unwrap();
-        
+
         if argc >= MAXARG {
             return goto_bad(Some(page_table), sz, Some(ip));
         }

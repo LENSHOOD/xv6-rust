@@ -2,6 +2,7 @@
 #![feature(start)]
 
 use core::mem;
+
 use ulib::stubs::write;
 
 #[start]

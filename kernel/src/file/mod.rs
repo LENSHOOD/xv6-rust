@@ -20,10 +20,10 @@ pub struct File {
     ref_cnt: i32, // reference count
     pub(crate) readable: bool,
     pub(crate) writable: bool,
-    pub(crate) pipe: Option<*mut Pipe>,           // FD_PIPE
-    pub(crate) ip: Option<*mut INode>, // FD_INODE and FD_DEVICE
-    pub(crate) off: u32,               // FD_INODE
-    pub(crate) major: i16,             // FD_DEVICE
+    pub(crate) pipe: Option<*mut Pipe>, // FD_PIPE
+    pub(crate) ip: Option<*mut INode>,  // FD_INODE and FD_DEVICE
+    pub(crate) off: u32,                // FD_INODE
+    pub(crate) major: i16,              // FD_DEVICE
 }
 
 impl File {

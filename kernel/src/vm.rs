@@ -1,12 +1,13 @@
+use core::ptr::null_mut;
+
+use crate::{MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, printf, PTE2PA, PTE_FLAGS, PX};
 use crate::kalloc::KMEM;
 use crate::memlayout::{KERNBASE, PHYSTOP, PLIC, TRAMPOLINE, UART0, VIRTIO0};
 use crate::proc::proc_mapstacks;
 use crate::riscv::{
-    sfence_vma, w_satp, PageTable, Pte, MAXVA, PGSIZE, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X,
+    MAXVA, PageTable, PGSIZE, Pte, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X, sfence_vma, w_satp,
 };
 use crate::string::{memmove, memset};
-use crate::{printf, MAKE_SATP, PA2PTE, PGROUNDDOWN, PGROUNDUP, PTE2PA, PTE_FLAGS, PX};
-use core::ptr::null_mut;
 
 /*
  * the kernel's page table.

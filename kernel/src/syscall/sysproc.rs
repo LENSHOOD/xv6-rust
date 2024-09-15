@@ -1,10 +1,9 @@
 use crate::file::file::filedup;
 use crate::param::NOFILE;
-use crate::proc::{allocproc, freeproc, myproc, wait, Trapframe};
+use crate::proc::{allocproc, freeproc, myproc, wait};
 use crate::proc::{exit, Procstate::RUNNABLE, WAIT_LOCK};
 use crate::syscall::syscall::{argaddr, argint};
 use crate::vm::uvmcopy;
-use core::mem;
 
 pub(crate) fn sys_exit() -> u64 {
     let n = argint(0);

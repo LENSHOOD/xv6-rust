@@ -5,6 +5,8 @@
 // qemu ... -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 //
 
+use core::{mem, ptr};
+
 use crate::buf::Buf;
 use crate::fs::BSIZE;
 use crate::kalloc::KMEM;
@@ -13,7 +15,7 @@ use crate::riscv::{__sync_synchronize, PGSIZE};
 use crate::spinlock::Spinlock;
 use crate::string::memset;
 use crate::virtio::*;
-use core::{mem, ptr};
+
 // the address of virtio mmio register r.
 macro_rules! Read_R {
     ( $r:expr ) => {

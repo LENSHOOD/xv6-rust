@@ -1,5 +1,5 @@
+use crate::file::{DEVSW, File};
 use crate::file::FDType::{FD_DEVICE, FD_INODE, FD_NONE, FD_PIPE};
-use crate::file::{File, DEVSW};
 use crate::fs::BSIZE;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXOPBLOCKS, NDEV, NFILE};
@@ -87,7 +87,7 @@ pub(crate) fn fileclose(f: &mut File) {
 // addr is a user virtual address.
 pub(crate) fn fileread(f: &mut File, addr: usize, n: i32) -> i32 {
     if !f.readable {
-        return -1
+        return -1;
     }
 
     return match f.file_type {
@@ -109,16 +109,16 @@ pub(crate) fn fileread(f: &mut File, addr: usize, n: i32) -> i32 {
             if f.major < 0 || f.major >= NDEV || unsafe { DEVSW[f.major as usize].is_none() } {
                 return -1;
             }
-            return unsafe { 
+            return unsafe {
                 DEVSW[f.major as usize]
                     .unwrap()
                     .as_mut()
                     .unwrap()
-                    .read(true, addr, n as usize) 
+                    .read(true, addr, n as usize)
             };
         }
         _ => panic!("fileread"),
-    }
+    };
 }
 
 // Write to file f.
@@ -131,10 +131,7 @@ pub(crate) fn filewrite(f: &mut File, addr: usize, n: i32) -> i32 {
     match f.file_type {
         FD_PIPE => unsafe { f.pipe.unwrap().as_mut().unwrap().write(addr, n) },
         FD_DEVICE => {
-            if f.major < 0
-                || f.major >= NDEV
-                || unsafe { DEVSW[f.major as usize].is_none() }
-            {
+            if f.major < 0 || f.major >= NDEV || unsafe { DEVSW[f.major as usize].is_none() } {
                 return -1;
             }
             unsafe {

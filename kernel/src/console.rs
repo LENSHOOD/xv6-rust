@@ -1,8 +1,9 @@
-use crate::file::{Devsw, CONSOLE, DEVSW};
+use core::fmt::{Error, Write};
+
+use crate::file::{CONSOLE, Devsw, DEVSW};
 use crate::proc::{either_copyin, either_copyout, myproc, procdump, sleep, wakeup};
 use crate::spinlock::Spinlock;
 use crate::uart::UART_INSTANCE;
-use core::fmt::{Error, Write};
 
 pub(crate) static mut CONSOLE_INSTANCE: Console = Console::create();
 

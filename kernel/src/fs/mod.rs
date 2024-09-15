@@ -1,10 +1,11 @@
 // On-disk file system format.
 // Both the kernel and user programs use this header file.
 
-pub(crate) mod fs;
+use core::mem;
 
 use crate::stat::FileType;
-use core::mem;
+
+pub(crate) mod fs;
 
 pub const ROOTINO: u32 = 1; // root i-number
 pub const BSIZE: usize = 4096; // block size

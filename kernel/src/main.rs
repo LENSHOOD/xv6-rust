@@ -6,6 +6,15 @@
 
 extern crate alloc;
 
+use core::alloc::{GlobalAlloc, Layout};
+use core::sync::atomic::{AtomicBool, Ordering};
+
+use crate::console::Console;
+use crate::kalloc::KMem;
+use crate::proc::cpuid;
+use crate::riscv::__sync_synchronize;
+use crate::uart::Uart;
+
 mod asm;
 mod bio;
 mod buf;
@@ -33,15 +42,6 @@ mod trap;
 mod uart;
 mod virtio;
 mod vm;
-
-use crate::console::Console;
-use crate::kalloc::KMem;
-use crate::printf::Printer;
-use crate::proc::cpuid;
-use crate::riscv::__sync_synchronize;
-use crate::uart::Uart;
-use core::alloc::{GlobalAlloc, Layout};
-use core::sync::atomic::{AtomicBool, Ordering};
 
 // ///////////////////////////////////
 // / LANGUAGE STRUCTURES / FUNCTIONS

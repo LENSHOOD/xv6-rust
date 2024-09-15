@@ -1,8 +1,10 @@
+use core::mem;
+
 use crate::exec::exec;
-use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
-use crate::file::file::{filealloc, fileclose, filedup, fileread, filewrite};
-use crate::file::FDType::{FD_DEVICE, FD_INODE};
 use crate::file::{File, INode};
+use crate::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
+use crate::file::FDType::{FD_DEVICE, FD_INODE};
+use crate::file::file::{filealloc, fileclose, filedup, fileread, filewrite};
 use crate::fs::fs::{dirlink, dirlookup, ialloc, namei, nameiparent};
 use crate::kalloc::KMEM;
 use crate::log::{begin_op, end_op};
@@ -12,7 +14,6 @@ use crate::riscv::PGSIZE;
 use crate::stat::FileType;
 use crate::stat::FileType::{T_DEVICE, T_DIR, T_FILE};
 use crate::syscall::syscall::{argaddr, argint, argstr, fetchaddr, fetchstr};
-use core::mem;
 
 pub(crate) fn sys_exec() -> u64 {
     let mut uarg: usize = 0;

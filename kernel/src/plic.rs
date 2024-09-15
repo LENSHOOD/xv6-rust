@@ -2,9 +2,9 @@
 // the riscv Platform Level Interrupt Controller (PLIC).
 //
 
+use crate::{PLIC_SCLAIM, PLIC_SENABLE, PLIC_SPRIORITY};
 use crate::memlayout::{PLIC, UART0_IRQ, VIRTIO0_IRQ};
 use crate::proc::cpuid;
-use crate::{proc, PLIC_SCLAIM, PLIC_SENABLE, PLIC_SPRIORITY};
 
 pub(crate) fn plicinit() {
     unsafe {

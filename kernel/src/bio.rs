@@ -13,11 +13,12 @@
 // * Only one process at a time can use a buffer,
 //     so do not keep them longer than necessary.
 
+use core::ptr::NonNull;
+
 use crate::buf::Buf;
 use crate::param::NBUF;
 use crate::spinlock::Spinlock;
 use crate::virtio::virtio_disk::virtio_disk_rw;
-use core::ptr::NonNull;
 
 struct BCache {
     lock: Spinlock,

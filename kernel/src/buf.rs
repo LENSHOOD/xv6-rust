@@ -1,6 +1,7 @@
+use core::ptr::NonNull;
+
 use crate::fs::BSIZE;
 use crate::sleeplock::Sleeplock;
-use core::ptr::NonNull;
 
 #[derive(Copy, Clone)]
 pub struct Buf {

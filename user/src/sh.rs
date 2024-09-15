@@ -19,7 +19,11 @@ use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
 // Parsed command representation
 #[derive(Copy, Clone)]
 enum CmdType {
-    EXEC, REDIR, PIPE, LIST, BACK
+    EXEC,
+    REDIR,
+    PIPE,
+    LIST,
+    BACK,
 }
 
 const MAXARGS: usize = 10;
@@ -52,11 +56,19 @@ impl Cmd for ExecCmd {
 
     fn run(&self) {
         if self.argv.borrow_mut()[0] == 0 as *const u8 {
-            unsafe { exit(1); }
+            unsafe {
+                exit(1);
+            }
         }
-        
-        unsafe { exec(self.argv.borrow_mut()[0], self.argv.borrow_mut().as_ptr()); }
-        fprintf!(2, "exec {} failed\n", self.argv.borrow_mut()[0].as_ref().unwrap());
+
+        unsafe {
+            exec(self.argv.borrow_mut()[0], self.argv.borrow_mut().as_ptr());
+        }
+        fprintf!(
+            2,
+            "exec {} failed\n",
+            self.argv.borrow_mut()[0].as_ref().unwrap()
+        );
     }
 
     fn nulterminate(&mut self) {
@@ -72,11 +84,17 @@ struct RedirCmd {
     file: [u8; CMD_MAX_LEN],
     efile: usize,
     mode: i32,
-    fd: i32
+    fd: i32,
 }
 
 impl RedirCmd {
-    fn new(subcmd: Rc<RefCell<Box<dyn Cmd>>>, file: [u8; CMD_MAX_LEN], efile: usize, mode: i32, fd: i32) -> Self {
+    fn new(
+        subcmd: Rc<RefCell<Box<dyn Cmd>>>,
+        file: [u8; CMD_MAX_LEN],
+        efile: usize,
+        mode: i32,
+        fd: i32,
+    ) -> Self {
         Self {
             cmd_type: REDIR,
             cmd: subcmd,
@@ -94,12 +112,14 @@ impl Cmd for RedirCmd {
     }
 
     fn run(&self) {
-        unsafe { close(self.fd); }
-        if unsafe { open(self.file.as_ptr(), self.mode as u64)} < 0{ 
+        unsafe {
+            close(self.fd);
+        }
+        if unsafe { open(self.file.as_ptr(), self.mode as u64) } < 0 {
             fprintf!(2, "open {:?} failed\n", self.file);
             unsafe { exit(1) };
         }
-        
+
         self.cmd.borrow().run();
     }
 
@@ -192,7 +212,9 @@ impl Cmd for ListCmd {
         if fork1() == 0 {
             self.left.borrow().run();
         }
-        unsafe { wait(0 as *const u8); }
+        unsafe {
+            wait(0 as *const u8);
+        }
         self.right.borrow().run();
     }
 
@@ -211,7 +233,7 @@ impl BackCmd {
     fn new(subcmd: Rc<RefCell<Box<dyn Cmd>>>) -> Self {
         Self {
             cmd_type: BACK,
-            cmd: subcmd
+            cmd: subcmd,
         }
     }
 }
@@ -236,7 +258,7 @@ const CMD_MAX_LEN: usize = 100;
 struct Cmdline {
     buf: [u8; CMD_MAX_LEN],
     idx: AtomicUsize,
-    end: usize
+    end: usize,
 }
 
 impl Cmdline {
@@ -247,22 +269,22 @@ impl Cmdline {
             end: 0,
         }
     }
-    
+
     fn get_cur(&self) -> u8 {
         self.buf[self.idx.load(Ordering::Relaxed)]
     }
-    
+
     fn gets(&mut self) {
         let mut c: u8 = 0;
         let mut i = 0;
-        while i+1 < self.buf.len() {
+        while i + 1 < self.buf.len() {
             let cc = unsafe { read(0, &mut c as *mut u8, 1) };
             if cc < 1 {
-                break
+                break;
             }
 
             self.buf[i] = c;
-            i+=1;
+            i += 1;
             if c == b'\n' || c == b'\r' {
                 break;
             }
@@ -270,7 +292,7 @@ impl Cmdline {
 
         self.buf[i] = b'\0';
     }
-    
+
     fn parsecmd(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {
         self.end = strlen(&self.buf as *const u8);
         let cmd = self.parseline();
@@ -291,7 +313,10 @@ impl Cmdline {
         }
         if self.peek(&[b';']) {
             self.gettoken(None, None);
-            cmd = Rc::new(RefCell::new(Box::new(ListCmd::new(cmd.clone(), self.parseline()))));
+            cmd = Rc::new(RefCell::new(Box::new(ListCmd::new(
+                cmd.clone(),
+                self.parseline(),
+            ))));
         }
         return cmd;
     }
@@ -300,7 +325,10 @@ impl Cmdline {
         let mut cmd = self.parseexec();
         if self.peek(&[b'|']) {
             self.gettoken(None, None);
-            cmd = Rc::new(RefCell::new(Box::new(PipeCmd::new(cmd.clone(), self.parsepipe().clone()))));
+            cmd = Rc::new(RefCell::new(Box::new(PipeCmd::new(
+                cmd.clone(),
+                self.parsepipe().clone(),
+            ))));
         }
         return cmd;
     }
@@ -369,10 +397,28 @@ impl Cmdline {
             let mut new_file = [0; CMD_MAX_LEN];
             new_file[..file.len()].copy_from_slice(file);
             cmd = match tok {
-                b'<' => Rc::new(RefCell::new(Box::new(RedirCmd::new(cmd, new_file, eq, O_RDONLY as i32, 0)))),
-                b'>' => Rc::new(RefCell::new(Box::new(RedirCmd::new(cmd, new_file, eq, (O_WRONLY|O_CREATE|O_TRUNC) as i32, 1)))),
-                b'+' => Rc::new(RefCell::new(Box::new(RedirCmd::new(cmd, new_file, eq, (O_WRONLY|O_CREATE) as i32, 1)))),
-                _ => cmd
+                b'<' => Rc::new(RefCell::new(Box::new(RedirCmd::new(
+                    cmd,
+                    new_file,
+                    eq,
+                    O_RDONLY as i32,
+                    0,
+                )))),
+                b'>' => Rc::new(RefCell::new(Box::new(RedirCmd::new(
+                    cmd,
+                    new_file,
+                    eq,
+                    (O_WRONLY | O_CREATE | O_TRUNC) as i32,
+                    1,
+                )))),
+                b'+' => Rc::new(RefCell::new(Box::new(RedirCmd::new(
+                    cmd,
+                    new_file,
+                    eq,
+                    (O_WRONLY | O_CREATE) as i32,
+                    1,
+                )))),
+                _ => cmd,
             }
         }
         return cmd;
@@ -381,13 +427,17 @@ impl Cmdline {
     const whitespace: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
     const symbols: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
     fn peek(&self, toks: &[u8]) -> bool {
-        while self.idx.load(Ordering::Relaxed) < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+        while self.idx.load(Ordering::Relaxed) < self.end
+            && strchr(&Self::whitespace, self.get_cur()) != 0
+        {
             self.idx.fetch_add(1, Ordering::Relaxed);
         }
         return self.get_cur() != 0 && strchr(toks, self.get_cur()) != 0;
     }
     fn gettoken(&self, q: Option<&mut usize>, eq: Option<&mut usize>) -> u8 {
-        while self.idx.load(Ordering::Relaxed) < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+        while self.idx.load(Ordering::Relaxed) < self.end
+            && strchr(&Self::whitespace, self.get_cur()) != 0
+        {
             self.idx.fetch_add(1, Ordering::Relaxed);
         }
         if let Some(q) = q {
@@ -396,7 +446,9 @@ impl Cmdline {
         let mut ret = self.get_cur();
         match self.get_cur() {
             b'\0' => (),
-            b'|' | b'(' | b')' | b';' | b'&' | b'<' => { self.idx.fetch_add(1, Ordering::Relaxed); },
+            b'|' | b'(' | b')' | b';' | b'&' | b'<' => {
+                self.idx.fetch_add(1, Ordering::Relaxed);
+            }
             b'>' => {
                 self.idx.fetch_add(1, Ordering::Relaxed);
                 if self.get_cur() == b'>' {
@@ -408,8 +460,8 @@ impl Cmdline {
                 ret = b'a';
                 while self.idx.load(Ordering::Relaxed) < self.end
                     && strchr(&Self::whitespace, self.get_cur()) != 0
-                    && !strchr(&Self::symbols, self.get_cur()) != 0 {
-
+                    && !strchr(&Self::symbols, self.get_cur()) != 0
+                {
                     self.idx.fetch_add(1, Ordering::Relaxed);
                 }
             }
@@ -419,12 +471,13 @@ impl Cmdline {
             *eq = self.idx.load(Ordering::Relaxed);
         }
 
-        while self.idx.load(Ordering::Relaxed) < self.end && strchr(&Self::whitespace, self.get_cur()) != 0 {
+        while self.idx.load(Ordering::Relaxed) < self.end
+            && strchr(&Self::whitespace, self.get_cur()) != 0
+        {
             self.idx.fetch_add(1, Ordering::Relaxed);
         }
         return ret;
     }
-
 }
 
 #[start]
@@ -432,12 +485,14 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     // Ensure that three file descriptors are open.
     loop {
         let fd = unsafe { open("console\0".as_bytes().as_ptr(), O_RDWR) };
-        if fd < 0 { 
+        if fd < 0 {
             break;
         }
-        
+
         if fd >= 3 {
-            unsafe { close(fd); }
+            unsafe {
+                close(fd);
+            }
             break;
         }
     }
@@ -447,7 +502,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
         let buf = &mut cmdline.buf;
         if buf[0] == b'c' && buf[1] == b'd' && buf[2] == b' ' {
             // Chdir must be called by the parent, not the child.
-            buf[strlen(buf as *const u8)-1] = 0;  // chop \n
+            buf[strlen(buf as *const u8) - 1] = 0; // chop \n
             if unsafe { chdir((buf as *mut u8).add(3)) } < 0 {
                 fprintf!(2, "cannot cd {:?}\n", &buf[3..]);
             }
@@ -456,20 +511,27 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
         if fork1() == 0 {
             cmdline.parsecmd().borrow().run();
         }
-        unsafe { wait(0 as *const u8); }
+        unsafe {
+            wait(0 as *const u8);
+        }
     }
 
-    unsafe { exit(0); }
+    unsafe {
+        exit(0);
+    }
 }
 
 fn getcmd() -> Option<Cmdline> {
-    unsafe { write(2, "$ \0".as_bytes().as_ptr(), 2); }
+    unsafe {
+        write(2, "$ \0".as_bytes().as_ptr(), 2);
+    }
     let mut cmdline = Cmdline::new();
     cmdline.gets();
-    if cmdline.buf[0] == 0 { // EOF
+    if cmdline.buf[0] == 0 {
+        // EOF
         return None;
     }
-    
+
     return Some(cmdline);
 }
 

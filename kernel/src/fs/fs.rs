@@ -67,23 +67,24 @@
 // dev, and inum.  One must hold ip->lock in order to
 // read or write that inode's ip->valid, ip->size, ip->type, &c.
 
+use core::cmp::min;
+use core::mem;
+use core::mem::size_of_val;
+
+use crate::{BBLOCK, IBLOCK, printf};
 use crate::bio::{bread, brelse};
 use crate::file::INode;
 use crate::fs::{
-    DINode, Dirent, SuperBlock, BPB, BSIZE, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT,
-    ROOTINO,
+    BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT, ROOTINO,
+    SuperBlock,
 };
 use crate::log::{initlog, log_write};
-use crate::param::{MAXPATH, NINODE, ROOTDEV};
+use crate::param::{NINODE, ROOTDEV};
 use crate::proc::{either_copyin, either_copyout, myproc};
 use crate::spinlock::Spinlock;
 use crate::stat::FileType;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
-use crate::string::{memmove, memset};
-use crate::{printf, BBLOCK, IBLOCK};
-use core::cmp::min;
-use core::mem;
-use core::mem::size_of_val;
+use crate::string::memset;
 
 struct ITable {
     lock: Spinlock,
@@ -458,7 +459,7 @@ pub(crate) fn namei<'a>(path: &[u8]) -> Option<&'a mut INode> {
 
 pub(crate) fn nameiparent<'a>(path: &[u8]) -> (Option<&'a mut INode>, &[u8]) {
     let (inode_op, subpath) = namex(path, true);
-    return (inode_op, &path[subpath.name.0..subpath.name.1])
+    return (inode_op, &path[subpath.name.0..subpath.name.1]);
 }
 
 // Look up and return the inode for a path name.
@@ -662,7 +663,7 @@ pub(crate) fn dirlookup<'a>(dp: &mut INode, name: &[u8], poff: &mut u32) -> Opti
     for off in (0..dp.size).step_by(sz) {
         // clear name buffer
         de.name = [0; DIRSIZ];
-        
+
         if dp.readi(false, &mut de as *mut Dirent, off, sz) != sz {
             panic!("dirlookup read");
         }

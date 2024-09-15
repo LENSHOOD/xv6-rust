@@ -1,14 +1,16 @@
 #![no_std]
 
-pub mod stubs;
-
-use crate::stubs::{read, write};
 use core::arch::global_asm;
-use core::fmt::Arguments;
 use core::fmt::{Error, Write};
+use core::fmt::Arguments;
 use core::result::{Result, Result::Ok};
+
 // panic_handler already defined in the kernel and needs to be imported here
 use kernel::panic;
+
+use crate::stubs::{read, write};
+
+pub mod stubs;
 
 global_asm!(include_str!("usys.S"));
 
@@ -58,29 +60,33 @@ pub fn printf(args: Arguments<'_>) {
 pub fn gets(buf: *mut u8, max: usize) -> *mut u8 {
     let mut c: u8 = 0;
     let mut i = 0;
-    while i+1 < max {
+    while i + 1 < max {
         let cc = unsafe { read(0, &mut c as *mut u8, 1) };
         if cc < 1 {
-            break
+            break;
         }
 
-        unsafe { buf.add(i).write(c); }
-        i+=1;
+        unsafe {
+            buf.add(i).write(c);
+        }
+        i += 1;
         if c == b'\n' || c == b'\r' {
             break;
         }
     }
 
-    unsafe { buf.add(i).write(b'\0'); }
+    unsafe {
+        buf.add(i).write(b'\0');
+    }
     return buf;
 }
 
 pub fn strchr(s: &[u8], c: u8) -> usize {
     for i in 0..s.len() {
-        if s[i] == c { 
+        if s[i] == c {
             return i;
         }
     }
-    
+
     0
 }

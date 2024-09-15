@@ -70,7 +70,8 @@ impl Pipe {
 
         self.lock.acquire();
         let mut i = 0;
-        while self.nread == self.nwrite && self.writeopen { //DOC: pipe-empty
+        while self.nread == self.nwrite && self.writeopen {
+            //DOC: pipe-empty
             if pr.killed() != 0 {
                 self.lock.release();
                 return -1;
@@ -89,11 +90,11 @@ impl Pipe {
             if copyout(pgtbl, addr + i, &ch, 1) == -1 {
                 break;
             }
-            
+
             ret = i;
         }
-       
-        wakeup(&self.nwrite);  //DOC: piperead-wakeup
+
+        wakeup(&self.nwrite); //DOC: piperead-wakeup
         self.lock.release();
         return i;
     }
