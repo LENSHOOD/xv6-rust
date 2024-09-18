@@ -182,14 +182,10 @@ pub(crate) fn sys_close() -> u64 {
         return -1i64 as u64;
     }
 
-    let f = fd_file.unwrap().1;
-    let fd = fdalloc(f);
-    if fd.is_none() {
-        return -1i64 as u64;
-    }
-
-    myproc().ofile[fd.unwrap()] = None;
-    fileclose(unsafe { f.as_mut().unwrap() });
+    let fd = fd_file.unwrap().0;
+    myproc().ofile[fd] = None;
+    let f = unsafe { fd_file.unwrap().1.as_mut().unwrap() };
+    fileclose(f);
     return 0;
 }
 
