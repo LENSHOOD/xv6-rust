@@ -1,3 +1,4 @@
+#![feature(strict_provenance)]
 #![no_std]
 
 use core::arch::global_asm;
@@ -11,6 +12,7 @@ use kernel::panic;
 use crate::stubs::{read, write};
 
 pub mod stubs;
+mod umalloc;
 
 global_asm!(include_str!("usys.S"));
 

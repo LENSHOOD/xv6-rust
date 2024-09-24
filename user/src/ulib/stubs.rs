@@ -18,7 +18,7 @@ extern "C" {
     pub fn chdir(path: *const u8) -> i32;
     pub fn dup(fd: i32) -> i32;
     // int getpid(void);
-    // char* sbrk(int);
+    pub fn sbrk(n: u32) -> *mut u8;
     // int sleep(int);
     // int uptime(void);
 }
