@@ -1,9 +1,27 @@
 // Memory allocator by Kernighan and Ritchie,
 // The C programming Language, 2nd ed.  Section 8.7.
 
-use core::{mem, ptr};
+use core::alloc::{GlobalAlloc, Layout};
+use core::mem;
 use core::ptr::null_mut;
+use core::sync::atomic::AtomicBool;
+
 use crate::stubs::sbrk;
+
+#[global_allocator]
+static ALLOCATOR: UserAllocator = UserAllocator {};
+
+struct UserAllocator {}
+unsafe impl Sync for UserAllocator {}
+unsafe impl GlobalAlloc for UserAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        malloc(layout.size() as u32)
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        free(ptr)
+    }
+}
 
 type Align = u64;
 
