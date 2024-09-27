@@ -3,7 +3,7 @@ use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use crate::{KSTACK, printf};
 use crate::file::{File, INode};
-use crate::file::file::fileclose;
+use crate::file::file::{fileclose, filedup};
 use crate::fs::fs;
 use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
@@ -15,7 +15,7 @@ use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
-use crate::vm::{copyin, copyout, kvmmap, mappages, uvmcreate, uvmfirst, uvmfree, uvmunmap};
+use crate::vm::{copyin, copyout, kvmmap, mappages, uvmalloc, uvmcopy, uvmcreate, uvmdealloc, uvmfirst, uvmfree, uvmunmap};
 
 // Saved registers for kernel context switches.
 #[repr(C)]
@@ -335,6 +335,86 @@ pub fn userinit() {
 // Give up the CPU for one scheduling round.
 pub(crate) fn yield_curr_proc() {
     myproc().proc_yield();
+}
+
+// Grow or shrink user memory by n bytes.
+// Return 0 on success, -1 on failure.
+pub(crate) fn growproc(n: i32) -> i32 {
+    let p = myproc();
+    
+    let mut sz = p.sz;
+    let page_table = unsafe { p.pagetable.unwrap().as_mut().unwrap() };
+    if n > 0 {
+        sz = uvmalloc(page_table, sz, sz + n as usize, PTE_W);
+        if sz == 0 {
+            return -1;
+        }
+    } else if n < 0 {
+        sz = uvmdealloc(page_table, sz, sz + n as usize);
+    }
+    
+    p.sz = sz;
+    return 0;
+}
+
+// Create a new process, copying the parent.
+// Sets up child kernel stack to return as if from fork() system call.
+pub(crate) fn fork() -> Option<u32> {
+    let p = myproc();
+
+    // Allocate process.
+    let np = allocproc()?;
+
+    // Copy user memory from parent to child.
+    if unsafe { uvmcopy(p.pagetable?.as_mut()?, np.pagetable?.as_mut()?, p.sz) } < 0 {
+        freeproc(np);
+        let _ = &np.lock.release();
+        return None;
+    }
+    np.sz = p.sz;
+
+    // copy saved user registers.
+    p.trapframe.map(|t| {
+        let dest = np.trapframe.unwrap();
+        unsafe {
+            t.copy_to(dest, 1);
+        }
+    });
+
+    // Cause fork to return 0 in the child.
+    unsafe {
+        np.trapframe?.as_mut()?.a0 = 0;
+    }
+
+    // increment reference counts on open file descriptors.
+    for i in 0..NOFILE {
+        if p.ofile[i].is_some() {
+            let f = p.ofile[i]?;
+            filedup(f);
+            np.ofile[i] = Some(f);
+        }
+    }
+
+    unsafe { p.cwd?.as_mut()?.idup() };
+    np.cwd = p.cwd;
+
+    np.name.copy_from_slice(&p.name);
+
+    let pid = np.pid;
+
+    np.lock.release();
+
+    unsafe {
+        WAIT_LOCK.acquire();
+        np.parent = Some(p);
+        WAIT_LOCK.release();
+    }
+
+    np.lock.acquire();
+    np.state = RUNNABLE;
+    np.lock.release();
+
+    return Some(pid);
 }
 
 // A fork child's very first scheduling by scheduler()

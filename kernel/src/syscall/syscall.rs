@@ -10,7 +10,7 @@ use crate::syscall::{
 };
 use crate::syscall::sysfile::{sys_close, sys_open, sys_read};
 use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
-use crate::syscall::sysproc::{sys_exit, sys_fork, sys_wait};
+use crate::syscall::sysproc::{sys_exit, sys_fork, sys_sbrk, sys_wait};
 use crate::vm::{copyin, copyinstr};
 
 // Retrieve an argument as a pointer.
@@ -96,7 +96,7 @@ const SYSCALL: [Option<fn() -> u64>; 22] = {
     arr[SYS_chdir] = None;
     arr[SYS_dup] = Some(sys_dup);
     arr[SYS_getpid] = None;
-    arr[SYS_sbrk] = None;
+    arr[SYS_sbrk] = Some(sys_sbrk);
     arr[SYS_sleep] = None;
     arr[SYS_uptime] = None;
     arr[SYS_open] = Some(sys_open);
