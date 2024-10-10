@@ -1,9 +1,9 @@
 use core::sync::atomic::Ordering::Relaxed;
 
 use crate::console::CONSOLE_INSTANCE;
-use crate::PANICKED;
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::{pop_off, push_off, Spinlock};
+use crate::PANICKED;
 
 // the UART control registers are memory-mapped
 // at address UART0. this macro returns the

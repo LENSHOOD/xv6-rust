@@ -11,8 +11,8 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 
 use kernel::file::fcntl::{O_CREATE, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use kernel::string::strlen;
-use ulib::{fprintf, gets, strchr};
 use ulib::stubs::{chdir, close, dup, exec, exit, fork, open, pipe, read, wait, write};
+use ulib::{fprintf, gets, strchr};
 
 use crate::CmdType::{BACK, EXEC, LIST, PIPE, REDIR};
 

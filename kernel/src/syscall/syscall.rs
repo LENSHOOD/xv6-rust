@@ -3,14 +3,14 @@ use core::mem;
 use crate::printf;
 use crate::proc::myproc;
 use crate::string::strlen;
+use crate::syscall::sysfile::{sys_close, sys_open, sys_read};
+use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
+use crate::syscall::sysproc::{sys_exit, sys_fork, sys_sbrk, sys_wait};
 use crate::syscall::{
     SYS_chdir, SYS_close, SYS_dup, SYS_exec, SYS_exit, SYS_fork, SYS_fstat, SYS_getpid, SYS_kill,
     SYS_link, SYS_mkdir, SYS_mknod, SYS_open, SYS_pipe, SYS_read, SYS_sbrk, SYS_sleep, SYS_unlink,
     SYS_uptime, SYS_wait, SYS_write,
 };
-use crate::syscall::sysfile::{sys_close, sys_open, sys_read};
-use crate::syscall::sysfile::{sys_dup, sys_exec, sys_mknod, sys_write};
-use crate::syscall::sysproc::{sys_exit, sys_fork, sys_sbrk, sys_wait};
 use crate::vm::{copyin, copyinstr};
 
 // Retrieve an argument as a pointer.

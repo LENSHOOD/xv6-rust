@@ -1,17 +1,17 @@
-use std::{cmp, io::Result};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::mem::size_of;
 use std::slice::from_raw_parts;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::{cmp, io::Result};
 
 use clap::Parser;
 
-use crate::deps::{
-    BSIZE, DINode, Dirent, DIRSIZ, FileType, FSMAGIC, FSSIZE, IPB, LOGSIZE, MAXFILE, NDIRECT,
-    NINDIRECT, ROOTINO, SuperBlock,
-};
 use crate::deps::FileType::{T_DIR, T_FILE};
+use crate::deps::{
+    DINode, Dirent, FileType, SuperBlock, BSIZE, DIRSIZ, FSMAGIC, FSSIZE, IPB, LOGSIZE, MAXFILE,
+    NDIRECT, NINDIRECT, ROOTINO,
+};
 
 mod deps;
 const NINODES: u32 = 200;

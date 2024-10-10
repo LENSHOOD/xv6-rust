@@ -1,9 +1,9 @@
 use core::arch::asm;
 
-use crate::{CLINT_MTIMECMP, kmain};
 use crate::memlayout::CLINT_MTIME;
 use crate::param::*;
 use crate::riscv::*;
+use crate::{kmain, CLINT_MTIMECMP};
 
 static TIMER_SCRATCH: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
 
@@ -38,6 +38,7 @@ extern "C" fn start() {
     w_pmpcfg0(0xf);
 
     // ask for clock interrupts.
+    // TODO: disable timer for simpler debug
     // timerinit();
 
     // keep each CPU's hartid in its tp register, for cpuid().

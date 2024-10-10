@@ -1,9 +1,8 @@
-use core::{mem, ptr};
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use core::{mem, ptr};
 
-use crate::{KSTACK, printf};
-use crate::file::{File, INode};
 use crate::file::file::{fileclose, filedup};
+use crate::file::{File, INode};
 use crate::fs::fs;
 use crate::fs::fs::namei;
 use crate::kalloc::KMEM;
@@ -11,11 +10,15 @@ use crate::log::{begin_op, end_op};
 use crate::memlayout::{TRAMPOLINE, TRAPFRAME};
 use crate::param::{NCPU, NOFILE, NPROC, ROOTDEV};
 use crate::proc::Procstate::{RUNNABLE, RUNNING, SLEEPING, UNUSED, USED, ZOMBIE};
-use crate::riscv::{intr_get, intr_on, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X, r_tp};
+use crate::riscv::{intr_get, intr_on, r_tp, PageTable, PGSIZE, PTE_R, PTE_W, PTE_X};
 use crate::spinlock::{pop_off, push_off, Spinlock};
 use crate::string::memmove;
 use crate::trap::usertrapret;
-use crate::vm::{copyin, copyout, kvmmap, mappages, uvmalloc, uvmcopy, uvmcreate, uvmdealloc, uvmfirst, uvmfree, uvmunmap};
+use crate::vm::{
+    copyin, copyout, kvmmap, mappages, uvmalloc, uvmcopy, uvmcreate, uvmdealloc, uvmfirst, uvmfree,
+    uvmunmap,
+};
+use crate::{printf, KSTACK};
 
 // Saved registers for kernel context switches.
 #[repr(C)]
@@ -341,7 +344,7 @@ pub(crate) fn yield_curr_proc() {
 // Return 0 on success, -1 on failure.
 pub(crate) fn growproc(n: i32) -> i32 {
     let p = myproc();
-    
+
     let mut sz = p.sz;
     let page_table = unsafe { p.pagetable.unwrap().as_mut().unwrap() };
     if n > 0 {
@@ -352,7 +355,7 @@ pub(crate) fn growproc(n: i32) -> i32 {
     } else if n < 0 {
         sz = uvmdealloc(page_table, sz, sz + n as usize);
     }
-    
+
     p.sz = sz;
     return 0;
 }

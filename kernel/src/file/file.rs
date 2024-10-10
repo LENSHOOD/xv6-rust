@@ -1,5 +1,5 @@
-use crate::file::{DEVSW, File};
 use crate::file::FDType::{FD_DEVICE, FD_INODE, FD_NONE, FD_PIPE};
+use crate::file::{File, DEVSW};
 use crate::fs::BSIZE;
 use crate::log::{begin_op, end_op};
 use crate::param::{MAXOPBLOCKS, NDEV, NFILE};

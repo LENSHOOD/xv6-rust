@@ -1,4 +1,4 @@
-use crate::proc::{Cpu, mycpu};
+use crate::proc::{mycpu, Cpu};
 use crate::riscv::{
     __sync_lock_release, __sync_lock_test_and_set, __sync_synchronize, intr_get, intr_off, intr_on,
 };

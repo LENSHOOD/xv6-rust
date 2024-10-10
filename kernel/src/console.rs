@@ -1,6 +1,6 @@
 use core::fmt::{Error, Write};
 
-use crate::file::{CONSOLE, Devsw, DEVSW};
+use crate::file::{Devsw, CONSOLE, DEVSW};
 use crate::proc::{either_copyin, either_copyout, myproc, procdump, sleep, wakeup};
 use crate::spinlock::Spinlock;
 use crate::uart::UART_INSTANCE;

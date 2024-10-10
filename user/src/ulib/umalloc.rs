@@ -28,35 +28,38 @@ type Align = u64;
 #[derive(Clone, Copy)]
 struct S {
     ptr: *mut Header,
-    size: u32
+    size: u32,
 }
 
 union Header {
     s: S,
-    x: Align
+    x: Align,
 }
 
 static mut BASE: *mut Header = &mut Header {
-    s: S{ ptr: null_mut(), size: 0 }
+    s: S {
+        ptr: null_mut(),
+        size: 0,
+    },
 } as *mut Header;
 static mut FREEP: *mut Header = null_mut();
 
 unsafe fn free(ap: *mut u8) {
     let bp = (ap as *mut Header).sub(1);
-    
+
     let mut p = FREEP;
     loop {
-        if bp > p && bp < (*p).s.ptr { 
+        if bp > p && bp < (*p).s.ptr {
             break;
         }
-        
-        if p >= (*p).s.ptr && (bp > p || bp < (*p).s.ptr) { 
+
+        if p >= (*p).s.ptr && (bp > p || bp < (*p).s.ptr) {
             break;
         }
-        
+
         p = (*p).s.ptr;
     }
-    
+
     if bp.expose_addr() + (*bp).s.size as usize == (*p).s.ptr.expose_addr() {
         (*bp).s.size += (*(*p).s.ptr).s.size;
         (*bp).s.ptr = (*(*p).s.ptr).s.ptr;
@@ -70,7 +73,7 @@ unsafe fn free(ap: *mut u8) {
     } else {
         (*p).s.ptr = bp;
     }
-    
+
     FREEP = p;
 }
 
@@ -83,7 +86,7 @@ unsafe fn morecore(nu: u32) -> *mut Header {
     if p.is_null() {
         return null_mut();
     }
-    
+
     let hp = p as *mut Header;
     (*hp).s.size = nu;
     free(hp.add(1) as *mut u8);
@@ -92,8 +95,8 @@ unsafe fn morecore(nu: u32) -> *mut Header {
 
 unsafe fn malloc(nbytes: u32) -> *mut u8 {
     let sz = mem::size_of::<Header>() as u32;
-    let nunits = (nbytes + sz - 1)/sz + 1;
-    
+    let nunits = (nbytes + sz - 1) / sz + 1;
+
     let mut prevp = FREEP;
     if prevp.is_null() {
         prevp = BASE;
@@ -101,27 +104,27 @@ unsafe fn malloc(nbytes: u32) -> *mut u8 {
         (*BASE).s.ptr = FREEP;
         (*BASE).s.size = 0;
     }
-    
+
     let mut p = (*prevp).s.ptr;
     loop {
-            if (*p).s.size >= nunits {
-                if (*p).s.size == nunits {
-                    (*prevp).s.ptr = (*p).s.ptr;
-                } else {
-                    (*p).s.size -= nunits;
-                    let _ = p.add((*p).s.size as usize);
-                    (*p).s.size = nunits;
-                }
-                FREEP = prevp;
-                return p.add(1) as *mut u8;
+        if (*p).s.size >= nunits {
+            if (*p).s.size == nunits {
+                (*prevp).s.ptr = (*p).s.ptr;
+            } else {
+                (*p).s.size -= nunits;
+                let _ = p.add((*p).s.size as usize);
+                (*p).s.size = nunits;
             }
+            FREEP = prevp;
+            return p.add(1) as *mut u8;
+        }
         if p == FREEP {
             p = morecore(nunits);
             if p.is_null() {
                 return null_mut();
             }
         }
-        
+
         prevp = p;
         p = (*p).s.ptr;
     }

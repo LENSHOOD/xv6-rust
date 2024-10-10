@@ -2,7 +2,7 @@ use core::mem;
 
 use crate::bio::{bpin, bread, brelse, bunpin, bwrite};
 use crate::buf::Buf;
-use crate::fs::{BSIZE, SuperBlock};
+use crate::fs::{SuperBlock, BSIZE};
 use crate::param::{LOGSIZE, MAXOPBLOCKS};
 use crate::proc::{sleep, wakeup};
 use crate::spinlock::Spinlock;

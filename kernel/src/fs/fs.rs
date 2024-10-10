@@ -71,12 +71,11 @@ use core::cmp::min;
 use core::mem;
 use core::mem::size_of_val;
 
-use crate::{BBLOCK, IBLOCK, printf};
 use crate::bio::{bread, brelse};
 use crate::file::INode;
 use crate::fs::{
-    BPB, BSIZE, DINode, Dirent, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT, ROOTINO,
-    SuperBlock,
+    DINode, Dirent, SuperBlock, BPB, BSIZE, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT,
+    ROOTINO,
 };
 use crate::log::{initlog, log_write};
 use crate::param::{NINODE, ROOTDEV};
@@ -85,6 +84,7 @@ use crate::spinlock::Spinlock;
 use crate::stat::FileType;
 use crate::stat::FileType::{NO_TYPE, T_DIR};
 use crate::string::memset;
+use crate::{printf, BBLOCK, IBLOCK};
 
 struct ITable {
     lock: Spinlock,

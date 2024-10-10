@@ -3,8 +3,8 @@
 
 extern crate kernel;
 
-use kernel::file::CONSOLE;
 use kernel::file::fcntl::O_RDWR;
+use kernel::file::CONSOLE;
 use ulib::printf;
 use ulib::stubs::{dup, exec, exit, fork, mknod, open, wait};
 
