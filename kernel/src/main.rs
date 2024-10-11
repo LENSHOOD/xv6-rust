@@ -86,6 +86,8 @@ unsafe impl GlobalAlloc for NoopAllocator {
         todo!()
     }
 }
+
+#[cfg(not(feature = "kernel_as_a_lib"))]
 #[global_allocator]
 static ALLOCATOR: NoopAllocator = NoopAllocator {};
 

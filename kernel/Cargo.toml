@@ -11,6 +11,10 @@ path = "src/main.rs"
 name = "kernel"
 path = "src/main.rs"
 
+[features]
+default = []
+kernel_as_a_lib = []
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
