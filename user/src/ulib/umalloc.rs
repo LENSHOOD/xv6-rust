@@ -4,7 +4,6 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::mem;
 use core::ptr::null_mut;
-use core::sync::atomic::AtomicBool;
 
 use crate::stubs::sbrk;
 
@@ -36,12 +35,12 @@ union Header {
     x: Align,
 }
 
-static mut BASE: *mut Header = &mut Header {
+static mut BASE: Header = Header {
     s: S {
         ptr: null_mut(),
         size: 0,
     },
-} as *mut Header;
+};
 static mut FREEP: *mut Header = null_mut();
 
 unsafe fn free(ap: *mut u8) {
@@ -99,10 +98,10 @@ unsafe fn malloc(nbytes: u32) -> *mut u8 {
 
     let mut prevp = FREEP;
     if prevp.is_null() {
-        prevp = BASE;
+        prevp = &mut BASE as * mut Header;
         FREEP = prevp;
-        (*BASE).s.ptr = FREEP;
-        (*BASE).s.size = 0;
+        BASE.s.ptr = FREEP;
+        BASE.s.size = 0;
     }
 
     let mut p = (*prevp).s.ptr;

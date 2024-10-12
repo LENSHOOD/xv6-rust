@@ -21,6 +21,6 @@ name = "_echo"
 path = "src/echo.rs"
 
 [dependencies]
-kernel = { path = "../kernel" }
+kernel = { path = "../kernel", features = ["kernel_as_a_lib"] }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
