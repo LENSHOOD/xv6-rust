@@ -445,8 +445,8 @@ impl Cmdline {
             _ => {
                 ret = b'a';
                 while self.idx.load(Ordering::Relaxed) < self.end
-                    && strchr(&Self::whitespace, self.get_cur()) != 0
-                    && !strchr(&Self::symbols, self.get_cur()) != 0
+                    && strchr(&Self::whitespace, self.get_cur()) == 0
+                    && strchr(&Self::symbols, self.get_cur()) == 0
                 {
                     self.idx.fetch_add(1, Ordering::Relaxed);
                 }
