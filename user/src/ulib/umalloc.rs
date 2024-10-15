@@ -111,7 +111,7 @@ unsafe fn malloc(nbytes: u32) -> *mut u8 {
                 (*prevp).s.ptr = (*p).s.ptr;
             } else {
                 (*p).s.size -= nunits;
-                let _ = p.add((*p).s.size as usize);
+                p = p.add((*p).s.size as usize);
                 (*p).s.size = nunits;
             }
             FREEP = prevp;
