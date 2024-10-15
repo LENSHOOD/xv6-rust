@@ -62,7 +62,7 @@ impl Cmd for ExecCmd {
         }
 
         unsafe {
-            exec(self.argv.borrow_mut()[0], self.argv.borrow_mut().as_ptr());
+            exec(self.argv.borrow()[0], self.argv.borrow().as_ptr());
         }
         fprintf!(
             2,
@@ -73,7 +73,11 @@ impl Cmd for ExecCmd {
 
     fn nulterminate(&mut self) {
         for i in 0..MAXARGS {
-            self.argv.borrow_mut()[self.eargv.borrow_mut()[i]] = 0 as *const u8;
+            if self.argv.borrow()[i].is_null() {
+                break;
+            }
+            
+            self.eargv.borrow_mut()[i] = 0;
         }
     }
 }
