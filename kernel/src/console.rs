@@ -179,7 +179,7 @@ impl Devsw for Console {
         let mut cnt = 0;
         for i in 0..sz {
             let mut c = 0u8;
-            if either_copyin(&mut c as *mut u8, is_user_src, src as *const u8, 1) == -1 {
+            if either_copyin(&mut c as *mut u8, is_user_src, (src + i) as *const u8, 1) == -1 {
                 break;
             }
             self.putc(c as u16);
