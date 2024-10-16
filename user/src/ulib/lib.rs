@@ -82,10 +82,10 @@ pub fn gets(buf: &mut [u8], max: usize) {
     }
 }
 
-pub fn strchr(s: &[u8], c: u8) -> usize {
+pub fn strchr(s: &[u8], c: u8) -> u8 {
     for i in 0..s.len() {
         if s[i] == c {
-            return i;
+            return s[i];
         }
     }
 
