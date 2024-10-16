@@ -35,7 +35,7 @@ trait Cmd {
 
 struct ExecCmd {
     cmd_type: CmdType,
-    argv: Rc<RefCell<[*const u8; MAXARGS]>>,
+    argv: Rc<RefCell<[*mut u8; MAXARGS]>>,
     eargv: Rc<RefCell<[usize; MAXARGS]>>,
 }
 
@@ -43,7 +43,7 @@ impl ExecCmd {
     fn new() -> Self {
         Self {
             cmd_type: EXEC,
-            argv: Rc::new(RefCell::new([0 as *const u8; MAXARGS])),
+            argv: Rc::new(RefCell::new([0 as *mut u8; MAXARGS])),
             eargv: Rc::new(RefCell::new([0; MAXARGS])),
         }
     }
@@ -55,14 +55,14 @@ impl Cmd for ExecCmd {
     }
 
     fn run(&self) {
-        if self.argv.borrow_mut()[0] == 0 as *const u8 {
+        if self.argv.borrow_mut()[0] == 0 as *mut u8 {
             unsafe {
                 exit(1);
             }
         }
 
         unsafe {
-            exec(self.argv.borrow()[0], self.argv.borrow().as_ptr());
+            exec(self.argv.borrow()[0], self.argv.borrow().as_ptr() as *const *const u8);
         }
         fprintf!(
             2,
@@ -73,11 +73,12 @@ impl Cmd for ExecCmd {
 
     fn nulterminate(&mut self) {
         for i in 0..MAXARGS {
-            if self.argv.borrow()[i].is_null() {
+            let curr_argv = self.argv.borrow_mut()[i];
+            if curr_argv.is_null() {
                 break;
             }
-            
-            self.eargv.borrow_mut()[i] = 0;
+
+            unsafe { curr_argv.add(self.eargv.borrow_mut()[i]).write_volatile(0); }
         }
     }
 }
@@ -275,7 +276,15 @@ impl Cmdline {
     }
 
     fn get_cur(&self) -> u8 {
-        self.buf[self.idx.load(Ordering::Relaxed)]
+        self.buf[self.get_idx()]
+    }
+
+    fn idx_add_1(&self) -> usize {
+        self.idx.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn get_idx(&self) -> usize {
+        self.idx.load(Ordering::Relaxed)
     }
 
     fn gets(&mut self) {
@@ -287,7 +296,7 @@ impl Cmdline {
         self.end = strlen(&self.buf as *const u8);
         let cmd = self.parseline();
         self.peek("".as_bytes());
-        if self.idx.load(Ordering::Relaxed) != self.end {
+        if self.get_idx() != self.end {
             fprintf!(2, "leftovers: {:?}\n", self.buf);
             panic!("syntax");
         }
@@ -295,7 +304,7 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parseline(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
+    fn parseline(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {
         let mut cmd = self.parsepipe();
         while self.peek(&[b'&']) {
             self.gettoken(None, None);
@@ -311,7 +320,7 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parsepipe(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
+    fn parsepipe(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {
         let mut cmd = self.parseexec();
         if self.peek(&[b'|']) {
             self.gettoken(None, None);
@@ -323,7 +332,7 @@ impl Cmdline {
         return cmd;
     }
 
-    fn parseexec(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
+    fn parseexec(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {
         if self.peek(&[b'(']) {
             return self.parseblock();
         }
@@ -346,8 +355,9 @@ impl Cmdline {
                 panic!("syntax");
             }
 
-            argv.borrow_mut()[argc] = (&self.buf[q..eq]).as_ptr();
-            eargv.borrow_mut()[argc] = eq;
+            argv.borrow_mut()[argc] = (&mut self.buf[q..]).as_mut_ptr();
+            // calculate which index of the current argv should be set to null eventually
+            eargv.borrow_mut()[argc] = eq - q;
             argc += 1;
             if argc >= MAXARGS {
                 panic!("too many args");
@@ -355,12 +365,12 @@ impl Cmdline {
             ret = self.parseredirs(ret);
         }
 
-        argv.borrow_mut()[argc] = 0 as *const u8;
+        argv.borrow_mut()[argc] = 0 as *mut u8;
         eargv.borrow_mut()[argc] = 0;
         return ret;
     }
 
-    fn parseblock(&self) -> Rc<RefCell<Box<dyn Cmd>>> {
+    fn parseblock(&mut self) -> Rc<RefCell<Box<dyn Cmd>>> {
         if !self.peek(&[b'(']) {
             panic!("parseblock");
         }
@@ -414,57 +424,52 @@ impl Cmdline {
         return cmd;
     }
 
-    const whitespace: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
-    const symbols: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
+    const WHITESPACE: [u8; 4] = [b' ', b'\t', b'\r', b'\n'];
+    const SYMBOLS: [u8; 7] = [b'<', b'|', b'>', b'&', b';', b'(', b')'];
     fn peek(&self, toks: &[u8]) -> bool {
-        while self.idx.load(Ordering::Relaxed) < self.end
-            && strchr(&Self::whitespace, self.get_cur()) != 0
-        {
-            self.idx.fetch_add(1, Ordering::Relaxed);
+        while self.get_idx() < self.end && strchr(&Self::WHITESPACE, self.get_cur()) != 0 {
+            self.idx_add_1();
         }
         return self.get_cur() != 0 && strchr(toks, self.get_cur()) != 0;
     }
+
     fn gettoken(&self, q: Option<&mut usize>, eq: Option<&mut usize>) -> u8 {
-        while self.idx.load(Ordering::Relaxed) < self.end
-            && strchr(&Self::whitespace, self.get_cur()) != 0
-        {
-            self.idx.fetch_add(1, Ordering::Relaxed);
+        while self.get_idx() < self.end && strchr(&Self::WHITESPACE, self.get_cur()) != 0 {
+            self.idx_add_1();
         }
         if let Some(q) = q {
-            *q = self.idx.load(Ordering::Relaxed);
+            *q = self.get_idx();
         }
         let mut ret = self.get_cur();
         match self.get_cur() {
             b'\0' => (),
             b'|' | b'(' | b')' | b';' | b'&' | b'<' => {
-                self.idx.fetch_add(1, Ordering::Relaxed);
+                self.idx_add_1();
             }
             b'>' => {
-                self.idx.fetch_add(1, Ordering::Relaxed);
+                self.idx_add_1();
                 if self.get_cur() == b'>' {
                     ret = b'+';
-                    self.idx.fetch_add(1, Ordering::Relaxed);
+                    self.idx_add_1();
                 }
             }
             _ => {
                 ret = b'a';
-                while self.idx.load(Ordering::Relaxed) < self.end
-                    && strchr(&Self::whitespace, self.get_cur()) == 0
-                    && strchr(&Self::symbols, self.get_cur()) == 0
+                while self.get_idx() < self.end
+                    && strchr(&Self::WHITESPACE, self.get_cur()) == 0
+                    && strchr(&Self::SYMBOLS, self.get_cur()) == 0
                 {
-                    self.idx.fetch_add(1, Ordering::Relaxed);
+                    self.idx_add_1();
                 }
             }
         }
 
         if let Some(eq) = eq {
-            *eq = self.idx.load(Ordering::Relaxed);
+            *eq = self.get_idx();
         }
 
-        while self.idx.load(Ordering::Relaxed) < self.end
-            && strchr(&Self::whitespace, self.get_cur()) != 0
-        {
-            self.idx.fetch_add(1, Ordering::Relaxed);
+        while self.get_idx() < self.end && strchr(&Self::WHITESPACE, self.get_cur()) != 0 {
+            self.idx_add_1();
         }
         return ret;
     }
