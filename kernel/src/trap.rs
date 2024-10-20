@@ -218,7 +218,7 @@ fn devintr() -> u8 {
             unsafe {
                 virtio_disk_intr();
             }
-        } else if irq == 0 {
+        } else if irq != 0 {
             printf!("unexpected interrupt irq={}\n", irq);
         }
 

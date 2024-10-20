@@ -11,7 +11,7 @@ pub(crate) fn plicinit() {
         // set desired IRQ priorities non-zero (otherwise disabled).
         let uart_irq_ref = (PLIC + UART0_IRQ * 4) as *mut u32;
         uart_irq_ref.write_volatile(1);
-        let virtio_irq_ref = ((PLIC + VIRTIO0_IRQ * 4) as *mut u32);
+        let virtio_irq_ref = (PLIC + VIRTIO0_IRQ * 4) as *mut u32;
         virtio_irq_ref.write_volatile(1);
     }
 }
