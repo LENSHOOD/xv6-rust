@@ -5,7 +5,7 @@ use crate::param::*;
 use crate::riscv::*;
 use crate::{kmain, CLINT_MTIMECMP};
 
-static TIMER_SCRATCH: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
+static mut TIMER_SCRATCH: [[u64; NCPU]; 5] = [[0; NCPU]; 5];
 
 #[repr(C, align(16))]
 struct Stack0Aligned([u8; 4096 * NCPU]);
@@ -38,8 +38,7 @@ extern "C" fn start() {
     w_pmpcfg0(0xf);
 
     // ask for clock interrupts.
-    // TODO: disable timer for simpler debug
-    // timerinit();
+    timerinit();
 
     // keep each CPU's hartid in its tp register, for cpuid().
     let id = r_mhartid();
@@ -68,11 +67,13 @@ fn timerinit() {
     // scratch[0..2] : space for timervec to save registers.
     // scratch[3] : address of CLINT MTIMECMP register.
     // scratch[4] : desired interval (in cycles) between timer interrupts.
-    let mut scratch = TIMER_SCRATCH[id as usize];
-    scratch[3] = CLINT_MTIMECMP!(id);
-    scratch[4] = interval;
-    let raw = &scratch as *const u64;
-    w_mscratch(raw as usize);
+    unsafe {
+        let scratch = &mut TIMER_SCRATCH[id as usize];
+        scratch[3] = CLINT_MTIMECMP!(id);
+        scratch[4] = interval;
+        let raw = scratch as *const u64;
+        w_mscratch(raw as usize);
+    }
 
     // set the machine-mode trap handler.
     w_mtvec(timervec as usize);
