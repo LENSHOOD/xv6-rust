@@ -43,6 +43,4 @@ initcode: initcode.S
 	od -t xC initcode
 
 clean:
-	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
-    	*/*.o */*.d */*.asm */*.sym \
-    	initcode
+	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg *.o *.d *.asm *.sym *.out initcode

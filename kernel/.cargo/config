@@ -1,7 +1,6 @@
 [build]
 target = "riscv64gc-unknown-none-elf"
-rustflags = ['-Clink-arg=-Tkernel/src/ld/kernel.ld', '--cfg', 'log_level="debug"']
-#rustflags = ['-Clink-arg=-Tkernel/src/ld/kernel.ld']
+rustflags = ['-Clink-arg=-Tsrc/ld/kernel.ld', '--cfg', 'log_level="debug"']
 
 [target.riscv64gc-unknown-none-elf]
 ## No disk
