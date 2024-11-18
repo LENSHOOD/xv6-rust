@@ -32,7 +32,7 @@ impl KMem {
     }
     pub fn kinit() {
         unsafe {
-            Self::freerange(&mut KMEM, (&mut end) as *mut u8, PHYSTOP as *mut u8);
+            KMEM.freerange((&mut end) as *mut u8, PHYSTOP as *mut u8);
         }
 
         // printf!("finish init from {:x}, to {:x}", unsafe { (&end as *const u8).expose_addr() }, PHYSTOP);

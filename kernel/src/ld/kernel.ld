@@ -10,7 +10,7 @@ SECTIONS
   . = 0x80000000;
 
   .text : {
-    /* no idea why the previous form *(.text .text.*) not working, maybe is relate to ld version */
+    /* no idea why the previous form *(.text .text.*) not working, maybe it is relate to ld version */
     *(.text) *(.text.*)
     . = ALIGN(0x1000);
     _trampoline = .;
