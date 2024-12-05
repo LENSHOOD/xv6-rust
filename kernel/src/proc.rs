@@ -519,7 +519,7 @@ pub fn proc_pagetable<'a>(p: &Proc) -> Option<*mut PageTable> {
     // at the highest user virtual address.
     // only the supervisor uses it, on the way
     // to/from user space, so not PTE_U.
-    let trampoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
+    let trampoline_addr = (unsafe { &trampoline } as *const u8).addr();
     if mappages(
         pagetable,
         TRAMPOLINE,
@@ -534,7 +534,7 @@ pub fn proc_pagetable<'a>(p: &Proc) -> Option<*mut PageTable> {
 
     // map the trapframe page just below the trampoline page, for
     // trampoline.S.
-    let trapframe_addr = (*p.trapframe.as_ref().unwrap() as *const Trapframe).expose_addr();
+    let trapframe_addr = (*p.trapframe.as_ref().unwrap() as *const Trapframe).addr();
     if mappages(pagetable, TRAPFRAME, trapframe_addr, PGSIZE, PTE_R | PTE_W) < 0 {
         uvmunmap(pagetable, TRAMPOLINE, 1, false);
         uvmfree(pagetable, 0);
@@ -560,7 +560,7 @@ pub(crate) fn either_copyout(is_user_dst: bool, dst: *mut u8, src: *const u8, le
     if is_user_dst {
         copyout(
             unsafe { p.pagetable.unwrap().as_mut().unwrap() },
-            dst.expose_addr(),
+            dst.addr(),
             src,
             len,
         )
@@ -579,7 +579,7 @@ pub(crate) fn either_copyin(dst: *mut u8, is_user_src: bool, src: *const u8, len
         copyin(
             unsafe { p.pagetable.unwrap().as_mut().unwrap() },
             dst,
-            src.expose_addr(),
+            src.addr(),
             len,
         )
     } else {

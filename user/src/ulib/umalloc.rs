@@ -59,14 +59,14 @@ unsafe fn free(ap: *mut u8) {
         p = (*p).s.ptr;
     }
 
-    if bp.expose_addr() + (*bp).s.size as usize == (*p).s.ptr.expose_addr() {
+    if bp.addr() + (*bp).s.size as usize == (*p).s.ptr.addr() {
         (*bp).s.size += (*(*p).s.ptr).s.size;
         (*bp).s.ptr = (*(*p).s.ptr).s.ptr;
     } else {
         (*bp).s.ptr = (*p).s.ptr;
     }
 
-    if p.expose_addr() + (*p).s.size as usize == bp.expose_addr() {
+    if p.addr() + (*p).s.size as usize == bp.addr() {
         (*p).s.size += (*bp).s.size;
         (*p).s.ptr = (*bp).s.ptr;
     } else {

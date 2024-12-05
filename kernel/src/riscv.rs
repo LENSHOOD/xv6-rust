@@ -339,7 +339,7 @@ pub fn __sync_lock_test_and_set(ptr: *mut u64, val: u64) -> u64 {
 }
 
 pub fn __sync_lock_release(ptr: *const u64) {
-    unsafe { asm!("amoswap.w zero, zero, ({})", in(reg) ptr) }
+    unsafe { asm!("amoswap.w.rl zero, zero, ({})", in(reg) ptr) }
 }
 
 pub fn __sync_synchronize() {

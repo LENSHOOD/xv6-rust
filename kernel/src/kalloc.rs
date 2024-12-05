@@ -35,7 +35,7 @@ impl KMem {
             KMEM.freerange((&mut end) as *mut u8, PHYSTOP as *mut u8);
         }
 
-        // printf!("finish init from {:x}, to {:x}", unsafe { (&end as *const u8).expose_addr() }, PHYSTOP);
+        // printf!("finish init from {:x}, to {:x}", unsafe { (&end as *const u8).addr() }, PHYSTOP);
     }
 
     fn freerange<T: Sized>(self: &mut Self, pa_start: *mut T, pa_end: *mut T) {

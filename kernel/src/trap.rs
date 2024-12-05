@@ -31,7 +31,7 @@ pub fn trapinit() {
 
 // set up to take exceptions and traps while in the kernel.
 pub fn trapinithart() {
-    w_stvec((unsafe { &kernelvec } as *const u8).expose_addr());
+    w_stvec((unsafe { &kernelvec } as *const u8).addr());
 }
 
 //
@@ -45,7 +45,7 @@ fn usertrap() {
 
     // send interrupts and exceptions to kerneltrap(),
     // since we're now in the kernel.
-    w_stvec((unsafe { &kernelvec } as *const u8).expose_addr());
+    w_stvec((unsafe { &kernelvec } as *const u8).addr());
 
     let p = myproc();
 
@@ -109,8 +109,8 @@ pub fn usertrapret() {
     intr_off();
 
     // send syscalls, interrupts, and exceptions to uservec in trampoline.S
-    let uservec_addr = (unsafe { &uservec } as *const u8).expose_addr();
-    let trampoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
+    let uservec_addr = (unsafe { &uservec } as *const u8).addr();
+    let trampoline_addr = (unsafe { &trampoline } as *const u8).addr();
     let trampoline_uservec = TRAMPOLINE + uservec_addr - trampoline_addr;
     w_stvec(trampoline_uservec);
 
@@ -136,12 +136,12 @@ pub fn usertrapret() {
     w_sepc(trapframe.epc as usize);
 
     // tell trampoline.S the user page table to switch to.
-    let satp = MAKE_SATP!((p.pagetable.unwrap() as *const PageTable).expose_addr());
+    let satp = MAKE_SATP!((p.pagetable.unwrap() as *const PageTable).addr());
 
     // jump to userret in trampoline.S at the top of memory, which
     // switches to the user page table, restores user registers,
     // and switches to user mode with sret.
-    let userret_addr = (unsafe { &userret } as *const u8).expose_addr();
+    let userret_addr = (unsafe { &userret } as *const u8).addr();
     let trampoline_userret = TRAMPOLINE + userret_addr - trampoline_addr;
 
     type UserRetFn = unsafe extern "C" fn(stap: usize);

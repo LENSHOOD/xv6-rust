@@ -166,20 +166,20 @@ pub fn virtio_disk_init() {
     Write_R!(VIRTIO_MMIO_QUEUE_NUM, NUM as u32);
 
     // write physical addresses.
-    Write_R!(VIRTIO_MMIO_QUEUE_DESC_LOW, DISK.desc.expose_addr() as u32);
+    Write_R!(VIRTIO_MMIO_QUEUE_DESC_LOW, DISK.desc.addr() as u32);
     Write_R!(
         VIRTIO_MMIO_QUEUE_DESC_HIGH,
-        (DISK.desc.expose_addr() >> 32) as u32
+        (DISK.desc.addr() >> 32) as u32
     );
-    Write_R!(VIRTIO_MMIO_DRIVER_DESC_LOW, DISK.avail.expose_addr() as u32);
+    Write_R!(VIRTIO_MMIO_DRIVER_DESC_LOW, DISK.avail.addr() as u32);
     Write_R!(
         VIRTIO_MMIO_DRIVER_DESC_HIGH,
-        (DISK.avail.expose_addr() >> 32) as u32
+        (DISK.avail.addr() >> 32) as u32
     );
-    Write_R!(VIRTIO_MMIO_DEVICE_DESC_LOW, DISK.used.expose_addr() as u32);
+    Write_R!(VIRTIO_MMIO_DEVICE_DESC_LOW, DISK.used.addr() as u32);
     Write_R!(
         VIRTIO_MMIO_DEVICE_DESC_HIGH,
-        (DISK.used.expose_addr() >> 32) as u32
+        (DISK.used.addr() >> 32) as u32
     );
 
     // queue is ready.
@@ -229,13 +229,13 @@ pub unsafe fn virtio_disk_rw(b: &mut Buf, write: bool) {
     buf0.sector = sector;
 
     let virt_desc_0 = DISK.desc.add(idx[0]).as_mut().unwrap();
-    virt_desc_0.addr = (buf0 as *mut VirtioBlkReq).expose_addr() as u64;
+    virt_desc_0.addr = (buf0 as *mut VirtioBlkReq).addr() as u64;
     virt_desc_0.len = mem::size_of::<VirtioBlkReq>() as u32;
     virt_desc_0.flags = VRING_DESC_F_NEXT;
     virt_desc_0.next = idx[1] as u16;
 
     let virt_desc_1 = DISK.desc.add(idx[1]).as_mut().unwrap();
-    virt_desc_1.addr = (&b.data as *const u8).expose_addr() as u64;
+    virt_desc_1.addr = (&b.data as *const u8).addr() as u64;
     virt_desc_1.len = BSIZE as u32;
     if write {
         virt_desc_1.flags = 0; // device reads b->data
@@ -248,7 +248,7 @@ pub unsafe fn virtio_disk_rw(b: &mut Buf, write: bool) {
     DISK.info[idx[0]].status = 0xff; // device writes 0 on success
 
     let virt_desc_2 = DISK.desc.add(idx[2]).as_mut().unwrap();
-    virt_desc_2.addr = (&DISK.info[idx[0]].status as *const u8).expose_addr() as u64;
+    virt_desc_2.addr = (&DISK.info[idx[0]].status as *const u8).addr() as u64;
     virt_desc_2.len = 1;
     virt_desc_2.flags = VRING_DESC_F_WRITE; // device writes the status
     virt_desc_2.next = 0;

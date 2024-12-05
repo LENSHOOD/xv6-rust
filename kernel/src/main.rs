@@ -58,7 +58,7 @@ pub fn panic(info: &core::panic::PanicInfo) -> ! {
             "line {}, file {}: {}\n",
             p.line(),
             p.file(),
-            info.message().unwrap()
+            info.message()
         );
     } else {
         printf!("no information available.\n");

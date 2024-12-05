@@ -43,7 +43,7 @@ fn kvmmake<'a>() -> &'a PageTable {
     kvmmap(kpgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
     // printf!("PLIC Mapped.\n");
 
-    let etext_addr = (unsafe { &etext } as *const u8).expose_addr();
+    let etext_addr = (unsafe { &etext } as *const u8).addr();
     // map kernel text executable and read-only.
     kvmmap(
         kpgtbl,
@@ -65,7 +65,7 @@ fn kvmmake<'a>() -> &'a PageTable {
     );
     // printf!("etext_addr Mapped.\n");
 
-    let trapoline_addr = (unsafe { &trampoline } as *const u8).expose_addr();
+    let trapoline_addr = (unsafe { &trampoline } as *const u8).addr();
     // map the trampoline for trap entry/exit to
     // the highest virtual address in the kernel.
     kvmmap(kpgtbl, TRAMPOLINE, trapoline_addr, PGSIZE, PTE_R | PTE_X);
@@ -205,7 +205,7 @@ fn walk(pagetable: &mut PageTable, va: usize, alloc: usize) -> Option<&mut Pte> 
 
                 memset(next_level_pgtbl as *mut u8, 0, PGSIZE);
 
-                *pte = Pte(PA2PTE!(next_level_pgtbl.expose_addr()) | PTE_V);
+                *pte = Pte(PA2PTE!(next_level_pgtbl.addr()) | PTE_V);
                 // printf!("[{}] pte: {:x}\n", PX!(level, va), pte.0);
                 curr_pgtbl = next_level_pgtbl.as_mut().unwrap();
             }
@@ -246,7 +246,7 @@ pub fn kvminithart() {
     // wait for any previous writes to the page table memory to finish.
     sfence_vma();
 
-    let addr = unsafe { (KERNEL_PAGETABLE.unwrap() as *const PageTable).expose_addr() };
+    let addr = unsafe { (KERNEL_PAGETABLE.unwrap() as *const PageTable).addr() };
     let satp = MAKE_SATP!(addr);
     w_satp(satp);
 
@@ -280,7 +280,7 @@ pub fn uvmfirst(pagetable: &mut PageTable, src: *const u8, sz: usize) {
     mappages(
         pagetable,
         0,
-        mem.expose_addr(),
+        mem.addr(),
         PGSIZE,
         PTE_W | PTE_R | PTE_X | PTE_U,
     );
@@ -333,7 +333,7 @@ pub fn uvmalloc(page_table: &mut PageTable, oldsz: usize, newsz: usize, xperm: u
         if mappages(
             page_table,
             a,
-            mem.expose_addr(),
+            mem.addr(),
             PGSIZE,
             PTE_R | PTE_U | xperm,
         ) != 0
@@ -393,7 +393,7 @@ pub(crate) fn uvmcopy(old: &mut PageTable, new: &mut PageTable, sz: usize) -> i8
         memmove(mem, pa as *mut u8, PGSIZE);
 
         let flags = PTE_FLAGS!(pte.0);
-        if mappages(new, i, mem.expose_addr(), PGSIZE, flags) != 0 {
+        if mappages(new, i, mem.addr(), PGSIZE, flags) != 0 {
             unsafe { KMEM.kfree(mem) };
             uvmunmap(new, 0, i / PGSIZE, true);
             return -1;
