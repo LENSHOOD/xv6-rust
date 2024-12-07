@@ -261,9 +261,10 @@ fn iappend<T>(f: &mut File, inum: u32, xp: &T, n: i32) -> Result<()> {
             }
             let mut buf: [u8; NINDIRECT * 4] = unsafe { std::mem::transmute(indirect) };
             rsect(f, din.addrs[NDIRECT].to_le(), &mut buf)?;
+            indirect = unsafe { std::mem::transmute(buf) };
             if indirect[fbn - NDIRECT] == 0 {
                 indirect[fbn - NDIRECT] = FREEBLOCK.fetch_add(1, Ordering::Relaxed).to_le();
-                let mut buf: [u8; NINDIRECT * 4] = unsafe { std::mem::transmute(indirect) };
+                buf = unsafe { std::mem::transmute(indirect) };
                 wsect(f, din.addrs[NDIRECT].to_le(), &mut buf)?;
             }
             indirect[fbn - NDIRECT].to_le()
