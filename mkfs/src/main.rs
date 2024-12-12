@@ -1,3 +1,4 @@
+extern crate kernel;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::mem::size_of;
@@ -5,31 +6,30 @@ use std::slice::from_raw_parts;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{cmp, io::Result};
 
+use kernel::param::{FSSIZE, LOGSIZE};
+
 use clap::Parser;
+use kernel::fs::{DINode, Dirent, SuperBlock, BSIZE, DIRSIZ, FSMAGIC, IPB, MAXFILE, NDIRECT, NINDIRECT, ROOTINO};
+use kernel::IBLOCK;
+use kernel::stat::FileType;
+use kernel::stat::FileType::{T_DIR, T_FILE};
 
-use crate::deps::FileType::{T_DIR, T_FILE};
-use crate::deps::{
-    DINode, Dirent, FileType, SuperBlock, BSIZE, DIRSIZ, FSMAGIC, FSSIZE, IPB, LOGSIZE, MAXFILE,
-    NDIRECT, NINDIRECT, ROOTINO,
-};
-
-mod deps;
 const NINODES: u32 = 200;
 
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
 
-const NBITMAP: u32 = FSSIZE / (BSIZE as u32 * 8) + 1;
+const NBITMAP: u32 = (FSSIZE / (BSIZE * 8) + 1) as u32;
 const NINODEBLOCKS: u32 = NINODES / IPB + 1;
-const NLOG: u32 = LOGSIZE;
+const NLOG: u32 = LOGSIZE as u32;
 
 // 1 fs block = 1 disk sector
 const NMETA: u32 = 2 + NLOG + NINODEBLOCKS + NBITMAP; // Number of meta blocks (boot, sb, nlog, inode, bitmap)
-const NBLOCKS: u32 = FSSIZE - NMETA; // Number of data blocks
+const NBLOCKS: u32 = FSSIZE as u32 - NMETA; // Number of data blocks
 
 const SB: SuperBlock = SuperBlock {
     magic: FSMAGIC,
-    size: FSSIZE.to_le(),
+    size: (FSSIZE as u32).to_le(),
     nblocks: NBLOCKS.to_le(),
     ninodes: NINODES.to_le(),
     nlog: NLOG.to_le(),
@@ -70,7 +70,7 @@ fn main() -> Result<()> {
            NMETA, NLOG, NINODEBLOCKS, NBITMAP, NBLOCKS, FSSIZE);
 
     for i in 0..FSSIZE {
-        wsect(&mut img_file, i, &ZEROES)?;
+        wsect(&mut img_file, i as u32, &ZEROES)?;
     }
 
     let x = unsafe {

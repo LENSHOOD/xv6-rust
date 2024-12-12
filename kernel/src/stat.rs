@@ -1,5 +1,5 @@
 #[derive(Copy, Clone, PartialEq)]
-pub(crate) enum FileType {
+pub enum FileType {
     NO_TYPE,
     T_DIR,    // Directory
     T_FILE,   // File

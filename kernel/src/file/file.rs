@@ -90,7 +90,7 @@ pub(crate) fn fileread(f: &mut File, addr: usize, n: i32) -> i32 {
         return -1;
     }
 
-    return match f.file_type {
+    match f.file_type {
         FD_PIPE => {
             let pipe = unsafe { f.pipe.unwrap().as_mut().unwrap() };
             return pipe.read(addr, n);
@@ -109,16 +109,16 @@ pub(crate) fn fileread(f: &mut File, addr: usize, n: i32) -> i32 {
             if f.major < 0 || f.major >= NDEV || unsafe { DEVSW[f.major as usize].is_none() } {
                 return -1;
             }
-            return unsafe {
+            unsafe {
                 DEVSW[f.major as usize]
                     .unwrap()
                     .as_mut()
                     .unwrap()
                     .read(true, addr, n as usize)
-            };
+            }
         }
         _ => panic!("fileread"),
-    };
+    }
 }
 
 // Write to file f.

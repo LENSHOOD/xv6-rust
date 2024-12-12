@@ -15,6 +15,7 @@ use crate::proc::cpuid;
 use crate::riscv::__sync_synchronize;
 use crate::uart::Uart;
 
+#[cfg(not(feature = "kernel_as_a_lib"))]
 mod asm;
 mod bio;
 mod buf;
@@ -22,11 +23,11 @@ mod console;
 mod elf;
 mod exec;
 pub mod file;
-mod fs;
+pub mod fs;
 mod kalloc;
 mod log;
 mod memlayout;
-mod param;
+pub mod param;
 mod pipe;
 mod plic;
 mod printf;
@@ -35,7 +36,7 @@ mod riscv;
 mod sleeplock;
 mod spinlock;
 mod start;
-mod stat;
+pub mod stat;
 pub mod string;
 pub mod syscall;
 mod trap;
@@ -50,6 +51,8 @@ mod vm;
 extern "C" fn eh_personality() {}
 
 pub(crate) static PANICKED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(not(feature = "kernel_as_a_lib"))]
 #[panic_handler]
 pub fn panic(info: &core::panic::PanicInfo) -> ! {
     printf!("Aborting: \n");
@@ -68,6 +71,7 @@ pub fn panic(info: &core::panic::PanicInfo) -> ! {
     abort();
 }
 
+#[cfg(not(feature = "kernel_as_a_lib"))]
 #[no_mangle]
 extern "C" fn abort() -> ! {
     loop {

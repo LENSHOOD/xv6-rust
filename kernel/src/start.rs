@@ -12,6 +12,7 @@ struct Stack0Aligned([u8; 4096 * NCPU]);
 #[no_mangle]
 static stack0: Stack0Aligned = Stack0Aligned([0; 4096 * NCPU]);
 
+#[cfg(not(feature = "kernel_as_a_lib"))]
 #[no_mangle]
 extern "C" fn start() {
     // set M Previous Privilege mode to Supervisor, for mret.
@@ -52,6 +53,7 @@ extern "C" {
     fn timervec();
 }
 
+#[cfg(not(feature = "kernel_as_a_lib"))]
 fn timerinit() {
     // each CPU has a separate source of timer interrupts.
     let id = r_mhartid();
