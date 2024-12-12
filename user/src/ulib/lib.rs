@@ -6,22 +6,35 @@ use core::fmt::Arguments;
 use core::fmt::{Error, Write};
 use core::result::{Result, Result::Ok};
 
-// panic_handler already defined in the kernel and needs to be imported here
-use kernel::panic;
-
-use crate::stubs::{read, write};
+use crate::stubs::{read, write, exit};
 
 pub mod stubs;
 mod umalloc;
 
 global_asm!(include_str!("usys.S"));
 
+#[panic_handler]
+pub fn panic(info: &core::panic::PanicInfo) -> ! {
+    if let Some(p) = info.location() {
+        printf!(
+            "line {}, file {}: {}\n",
+            p.line(),
+            p.file(),
+            info.message()
+        );
+    } else {
+        printf!("no information available.\n");
+    }
+
+    unsafe { exit(-1); }
+}
+
 #[macro_export]
 macro_rules! printf
 {
 	($($arg:tt)*) => {
         unsafe {
-            ulib::printf(core::format_args!($($arg)*))
+            printf(core::format_args!($($arg)*))
         }
     };
 }
@@ -31,7 +44,7 @@ macro_rules! fprintf
 {
 	($fd:expr, $($arg:tt)*) => {
         unsafe {
-            ulib::fprintf($fd, core::format_args!($($arg)*))
+            fprintf($fd, core::format_args!($($arg)*))
         }
     };
 }
