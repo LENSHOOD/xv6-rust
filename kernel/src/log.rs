@@ -62,7 +62,7 @@ static mut LOG: Log = Log {
 };
 
 pub fn initlog(dev: u32, sb: &SuperBlock) {
-    if mem::size_of::<LogHeader>() >= BSIZE {
+    if size_of::<LogHeader>() >= BSIZE {
         panic!("initlog: too big logheader");
     }
 
@@ -86,7 +86,7 @@ unsafe fn recover_from_log() {
 // Read the log header from disk into the in-memory log header
 unsafe fn read_head() {
     let buf = bread(LOG.dev, LOG.start);
-    let (_head, body, _tail) = buf.data[0..mem::size_of::<LogHeader>()].align_to::<LogHeader>();
+    let (_head, body, _tail) = buf.data[0..size_of::<LogHeader>()].align_to::<LogHeader>();
     let lh = &body[0];
     LOG.lh.n = lh.n;
     for i in 0..LOG.lh.n as usize {
@@ -115,7 +115,7 @@ unsafe fn install_trans(recovering: bool) {
 // current transaction commits.
 unsafe fn write_head() {
     let buf = bread(LOG.dev, LOG.start);
-    let (_head, body, _tail) = buf.data[0..mem::size_of::<LogHeader>()].align_to_mut::<LogHeader>();
+    let (_head, body, _tail) = buf.data[0..size_of::<LogHeader>()].align_to_mut::<LogHeader>();
     let hb = &mut body[0];
     hb.n = LOG.lh.n;
     for i in 0..LOG.lh.n as usize {
@@ -145,7 +145,7 @@ pub fn log_write(b: &mut Buf) {
             panic!("log_write outside of trans");
         }
 
-        let mut idx = 0;
+        let mut idx = LOG.lh.n as usize;
         for i in 0..LOG.lh.n as usize {
             if LOG.lh.block[i] == b.blockno {
                 idx = i;
